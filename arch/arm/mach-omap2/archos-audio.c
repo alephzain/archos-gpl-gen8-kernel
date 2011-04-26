@@ -3,6 +3,7 @@
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/err.h>
+#include <linux/hrtimer.h>
 
 #include <mach/gpio.h>
 #include <mach/mux.h>
@@ -22,7 +23,6 @@ static struct archos_audio_conf audio_gpio;
 static char *sysclock_name = NULL;
 static char sys_clkout1_name[] = "sys_clkout1";
 static char sys_clkout2_name[] = "sys_clkout2";
-#define STEP() pr_info("%s:%d\n", __FUNCTION__, __LINE__);
 
 /* WORKAROUND: There is no way to keep CM_96M_FCLK (the sys_clkout2 source)
  * alive when every module which depends on it is idle, So we have to keep
@@ -33,10 +33,56 @@ int use_mcbsp1_fclk = 0;
 int use_vamp_usb = 0;
 int vamp_enabled = 0;
 
+struct hrtimer vamp_watchdog_timer;
+int vamp_watchdog_state;
+
+static enum hrtimer_restart vamp_watchdog_timer_func(struct hrtimer *timer)
+{
+	switch(vamp_watchdog_state) {
+		case 1:
+			// pulse down to allow usb de-plug detection...
+			gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 0);
+
+			// and re-enable it during next iteration, 1ms later.
+			hrtimer_start(&vamp_watchdog_timer,
+					ktime_set( 0, 1 * 1E6L),
+					HRTIMER_MODE_REL);
+			vamp_watchdog_state = 0;
+			break;
+
+		default:
+			if (use_vamp_usb) {
+				// if using vamp_usb, schedule trigger pulse
+				// down during next iteration.
+				gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 1);
+				vamp_watchdog_state = 1;
+			} else {
+				// else, just secure disabling of vamp_dc
+				gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 0);
+			}
+
+			hrtimer_start(&vamp_watchdog_timer,
+					ktime_set( 0, 1000 * 1E6L),
+					HRTIMER_MODE_REL);
+			break;
+	}
+
+	return HRTIMER_NORESTART;
+}
+
+static void power_watchdog_ctrl(int start) {
+	if (start) {
+		vamp_watchdog_state = 0;
+		hrtimer_start(&vamp_watchdog_timer, ktime_set( 0, 1 * 1E6L), HRTIMER_MODE_REL);
+	} else {
+		hrtimer_cancel(&vamp_watchdog_timer);
+	}
+}
+
 static void _set_ampli(int onoff)
 {
 	if (GPIO_PIN( audio_gpio.spdif ) < 0) {
-		printk(KERN_ERR "No SPDIF in this device !\n");
+		pr_debug("No SPDIF in this device !\n");
 		return;
 	}
 
@@ -48,7 +94,7 @@ static void _set_ampli(int onoff)
 
 static void _set_vamp(int onoff)
 {
-	if (GPIO_PIN( audio_gpio.vamp_vbat ) < 0 || GPIO_PIN( audio_gpio.vamp_dc ) < 0) {
+	if (GPIO_PIN( audio_gpio.vamp_vbat ) < 0) {
 		pr_debug("No Vamp config in this device !\n");
 		return;
 	}
@@ -56,23 +102,27 @@ static void _set_vamp(int onoff)
 	vamp_enabled = onoff;
 	
 	if (onoff == PLAT_ON){
-		if (use_vamp_usb) {
-			gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 1);
-			gpio_set_value( GPIO_PIN( audio_gpio.vamp_vbat), 0);
-		} else {
-			gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 0);
-			gpio_set_value( GPIO_PIN( audio_gpio.vamp_vbat), 1);
-		}
+		// we keep vamp_vbat always on : it's safe electrically
+		// and allows us to disable vamp_dc from time to time.
+		gpio_set_value( GPIO_PIN( audio_gpio.vamp_vbat), 1);
+		gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 0);
+
+		if ( GPIO_PIN( audio_gpio.vamp_dc ) > 0)
+			power_watchdog_ctrl(1);
 	} else {
 		gpio_set_value( GPIO_PIN( audio_gpio.vamp_vbat), 0);
-		gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 0);
+
+		if ( GPIO_PIN( audio_gpio.vamp_dc ) > 0) {
+			power_watchdog_ctrl(0);
+			gpio_set_value( GPIO_PIN( audio_gpio.vamp_dc), 0);
+		}
 	}
 }
 
 static void _set_hp(int onoff)
 {
 	if (GPIO_PIN( audio_gpio.hp_on ) < 0) {
-		printk(KERN_ERR "No Speaker in this device !\n");
+		pr_debug("No Speaker in this device !\n");
 		return;
 	}
 
@@ -90,7 +140,7 @@ static void _set_hp(int onoff)
 static int _get_headphone_plugged(void)
 {
 	if (GPIO_PIN( audio_gpio.headphone_plugged ) < 0) {
-		printk(KERN_ERR "No Headphone detection in this device !\n");
+		pr_debug("No Headphone detection in this device !\n");
 		return -1;
 	}
 
@@ -100,7 +150,7 @@ static int _get_headphone_plugged(void)
 static int _get_headphone_irq(void)
 {
 	if (GPIO_PIN( audio_gpio.headphone_plugged ) < 0) {
-		printk(KERN_ERR "No Headphone detection in this device !\n");
+		pr_debug("No Headphone detection in this device !\n");
 		return -1;
 	}
 
@@ -217,11 +267,11 @@ int __init archos_audio_gpio_init(void)
 	/* audio  */
 	audio_cfg = omap_get_config( ARCHOS_TAG_AUDIO, struct archos_audio_config );
 	if (audio_cfg == NULL) {
-		printk(KERN_DEBUG "archos_audio_gpio_init: no board configuration found\n");
+		pr_err("archos_audio_gpio_init: no board configuration found\n");
 		return -ENODEV;
 	}
 	if ( hardware_rev >= audio_cfg->nrev ) {
-		printk(KERN_DEBUG "archos_audio_gpio_init: hardware_rev (%i) >= nrev (%i)\n",
+		pr_err("archos_audio_gpio_init: hardware_rev (%i) >= nrev (%i)\n",
 			hardware_rev, audio_cfg->nrev);
 		return -ENODEV;
 	}
@@ -314,6 +364,9 @@ int __init archos_audio_gpio_init(void)
 		ret = device_create_file(&archos_audio_vamp_device.dev, &dev_attr_vamp_vusb_ctrl);
 		if (ret < 0)
 			return ret;
+
+		hrtimer_init(&vamp_watchdog_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		vamp_watchdog_timer.function = vamp_watchdog_timer_func;
 	}
 
 	pr_debug("%s init done\n", __FUNCTION__);

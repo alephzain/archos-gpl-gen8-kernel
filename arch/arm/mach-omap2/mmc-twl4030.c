@@ -428,6 +428,9 @@ void __init twl4030_mmc_init(struct twl4030_hsmmc_info *controllers)
 		mmc->init = twl_mmc_late_init;
 		mmc->context_loss = get_last_off_on_transaction_id;
 		mmc->set_vdd1_opp = omap_pm_set_min_mpu_freq;
+
+		mmc->slots[0].nomux = c->nomux;
+
 		if (cpu_is_omap3630()) {
 			mmc->max_vdd1_opp = 600000000;
 			mmc->min_vdd1_opp = 300000000;

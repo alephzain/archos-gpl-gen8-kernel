@@ -555,8 +555,8 @@ static int omap_vout_vrfb_buffer_setup(struct omap_vout_device *vout,
 	}
 	if (rotation_enabled(vout->rotation)) { 
 		for (i = 0; i < *count; i++) {
-		if (vout->flg_720 == VIDEO_720_ENABLE ||
-		    vout->use_isp_rsz_for_downscale) {
+			if (vout->flg_720 == VIDEO_720_ENABLE ||
+		    	vout->use_isp_rsz_for_downscale) {
 				width = vout->win.w.width;
 				height = vout->win.w.height;
 			} else {
@@ -2210,7 +2210,7 @@ static int vidioc_dqbuf(struct file *file, void *fh,
 	return ret;
 }
 
-void timevalsub(struct timeval *t1, struct timeval *t2)
+static void timevalsub(struct timeval *t1, struct timeval *t2)
 {
 	t1->tv_sec  -= t2->tv_sec;
 	t1->tv_usec -= t2->tv_usec;

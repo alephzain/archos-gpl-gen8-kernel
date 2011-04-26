@@ -1608,7 +1608,7 @@ static int __init omap_sgx_dc_init(void)
 #if defined(SGX_EARLYSUSPEND)
 	driver_early_suspend.suspend = DriverSuspend_Entry;
         driver_early_suspend.resume = DriverResume_Entry;
-        driver_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+        driver_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
         register_early_suspend(&driver_early_suspend);
 	DEBUG_PRINTK("Registered early suspend support");
 #endif

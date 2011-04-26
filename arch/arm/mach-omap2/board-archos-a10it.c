@@ -319,36 +319,43 @@ static struct archos_charge_config charge_config __initdata = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 	.rev[1] = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 	.rev[2] = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 	.rev[3] = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 	.rev[4] = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 	.rev[5] = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 	.rev[6] = {
 		.charge_enable 	= UNUSED_GPIO,
 		.charge_high	= UNUSED_GPIO,
 		.charge_low 	= UNUSED_GPIO,
+		.charger_type	= CHARGER_DCIN,
 	},
 };
 

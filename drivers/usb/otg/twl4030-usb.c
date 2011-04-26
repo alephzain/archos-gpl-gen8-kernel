@@ -421,7 +421,6 @@ static enum linkstat twl4030_usb_linkstat(struct twl4030_usb *twl)
 	dev_dbg(twl->dev, "HW_CONDITIONS 0x%02x/%d; link %d\n",
 			status, status, linkstat);
 	*/
-
 	return linkstat;
 }
 
@@ -661,7 +660,7 @@ static ssize_t usb_switch_print_state(struct switch_dev *sdev, char *buf)
 		buflen = sprintf(buf, "DETACHED\n");
 		break;
 	}
-printk("usb_switch_print_state: %d %s\n", sdev->state, buf);
+//printk("usb_switch_print_state: %d %s\n", sdev->state, buf);
 	return buflen;
 }
 
@@ -730,7 +729,17 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 
 				msleep(100);
 			}
-
+			/* if a USB host cable is attached with a charged capacitor on VBUS, we might
+				detect VBUS falsely initially */
+			if ( twl->previous_linkstat == USB_LINK_NONE && linkstat == USB_LINK_VBUS ) {
+				msleep(200);
+				linkstat = twl4030_usb_linkstat(twl);
+				if (linkstat != twl->linkstat ) {
+					printk("after 200ms, linkstat now %d\n", linkstat);
+					twl->linkstat = linkstat; // might be changed in IRQ, too!!
+				}
+			}
+ 
 			if ( linkstat == USB_LINK_ID ) {
 #ifdef CONFIG_TPS65921_CHARGE_DETECT
 				if ( twl->enable_charge_detect ) {
@@ -868,7 +877,6 @@ static irqreturn_t twl4030_usb_id_irq(int irq, void *_twl)
 	int status;
 	int i;
 
-	
 	/* we need to wait a bit, because USB_PREP is using debouncing
 	 * and we are not...
 	 * Note that we can schedule() here, as this is not a real IRQ
@@ -924,7 +932,6 @@ static int twl4030_poll_usbid( void *_twl )
 		linkstat = twl4030_usb_linkstat(twl);
 		if ( linkstat != twl->linkstat ) {
 			twl->poll_usbid_thread = NULL;
-			
 			spin_lock_irq(&twl->lock);
 			twl->previous_linkstat = twl->linkstat;
 			/* if we have turned on VBUS ourselves, we assume nothing is connected now */
@@ -1122,20 +1129,19 @@ static int __init twl4030_usb_probe(struct platform_device *pdev)
 #endif
 
 	if (twl->usb_id_irq) {
-	status = request_irq(twl->usb_id_irq, twl4030_usb_id_irq,
+		status = request_irq(twl->usb_id_irq, twl4030_usb_id_irq,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 			"twl4030_usb_id", twl);
-	if (status < 0) {
-		dev_dbg(&pdev->dev, "can't get IRQ %d, err %d\n",
-			twl->usb_id_irq, status);
-		err = status;
-		free_irq(twl->irq, twl);
+		if (status < 0) {
+			dev_dbg(&pdev->dev, "can't get IRQ %d, err %d\n",
+				twl->usb_id_irq, status);
+			err = status;
+			free_irq(twl->irq, twl);
 #ifdef CONFIG_TPS65921_CHARGE_DETECT
-		free_irq(twl->accessory_irq, twl);
+			free_irq(twl->accessory_irq, twl);
 #endif
-		goto fail;
-	}
-
+			goto fail;
+		}
 	}
 
 	/* The IRQ handler just handles changes from the previous states

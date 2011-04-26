@@ -18,6 +18,7 @@ struct twl4030_hsmmc_info {
 	char	*name;		/* or NULL for default */
 	struct device *dev;	/* returned: pointer to mmc adapter */
 	int	ocr_mask;	/* temporary HACK */
+	int 	nomux;		/* disable automatic muxing */
 };
 
 extern unsigned get_last_off_on_transaction_id(struct device *dev);

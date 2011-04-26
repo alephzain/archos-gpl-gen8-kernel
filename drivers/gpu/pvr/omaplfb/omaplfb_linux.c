@@ -33,13 +33,8 @@
 #include <linux/fb.h>
 #include <asm/io.h>
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))
-#include <plat/vrfb.h>
-#include <plat/display.h>
-#else
 #include <mach/vrfb.h>
 #include <mach/display.h>
-#endif
 
 #ifdef RELEASE
 #include <../drivers/video/omap2/omapfb/omapfb.h>
@@ -51,20 +46,12 @@
 
 #include <asm/uaccess.h>
 
-#if defined(CONFIG_OUTER_CACHE)  /* Kernel config option */
-#include <asm/cacheflush.h>
-#define HOST_PAGESIZE			(4096)
-#define HOST_PAGEMASK			(~(HOST_PAGESIZE-1))
-#define HOST_PAGEALIGN(addr)	(((addr)+HOST_PAGESIZE-1)&HOST_PAGEMASK)
-#endif
-
 #if defined(LDM_PLATFORM)
 #include <linux/platform_device.h>
 #if defined(SGX_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
 #endif
 #endif
-
 
 #include "img_defs.h"
 #include "servicesext.h"
@@ -73,16 +60,6 @@
 #include "pvrmodule.h"
 
 MODULE_SUPPORTED_DEVICE(DEVNAME);
-
-#if defined(CONFIG_OUTER_CACHE)  /* Kernel config option */
-#if defined(__arm__)
-static void per_cpu_cache_flush_arm(void *arg)
-{
-    PVR_UNREFERENCED_PARAMETER(arg);
-    flush_cache_all();
-}
-#endif
-#endif
 
 /* IOCTL commands. */
 #define OMAPLFB_UPDATE		_IOW('L', 1, int)
@@ -101,29 +78,10 @@ void *OMAPLFBAllocKernelMem(unsigned long ui32ByteSize)
 {
 	void *p;
 
-#if defined(CONFIG_OUTER_CACHE)  /* Kernel config option */
-	IMG_VOID *pvPageAlignedCPUPAddr;
-	IMG_VOID *pvPageAlignedCPUVAddr;
-	IMG_UINT32 ui32PageOffset;
-	IMG_UINT32 ui32PageCount;
-#endif
 	p = kmalloc(ui32ByteSize, GFP_KERNEL);
 
 	if(!p)
 		return 0;
-
-#if defined(CONFIG_OUTER_CACHE)  /* Kernel config option */
-	ui32PageOffset = (IMG_UINT32) p & (HOST_PAGESIZE - 1);
-	ui32PageCount = HOST_PAGEALIGN(ui32ByteSize + ui32PageOffset) / HOST_PAGESIZE;
-
-	pvPageAlignedCPUVAddr = (IMG_VOID *)((IMG_UINT8 *)p - ui32PageOffset);
-	pvPageAlignedCPUPAddr = (IMG_VOID*) __pa(pvPageAlignedCPUVAddr);
-
-#if defined(__arm__)
-      on_each_cpu(per_cpu_cache_flush_arm, NULL, 1);
-#endif
-	outer_cache.flush_range((unsigned long) pvPageAlignedCPUPAddr, (unsigned long) ((pvPageAlignedCPUPAddr + HOST_PAGESIZE*ui32PageCount) - 1));
-#endif
 	return p;
 }
 
@@ -162,25 +120,21 @@ OMAP_ERROR OMAPLFBGetLibFuncAddr (char *szFunctionName,
  * Presents the flip in the display with the framebuffer API
  * in: psSwapChain, aPhyAddr
  */
-void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+static void OMAPLFBFlipNoLock(OMAPLFB_SWAPCHAIN *psSwapChain,
+	unsigned long aPhyAddr)
 {
 	OMAPLFB_DEVINFO	*psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
-	struct omapfb_info *ofbi = FB2OFB(framebuffer);
-	struct omapfb2_device *fbdev = ofbi->fbdev;
+
 	/* Get the framebuffer physical address base */
 	unsigned long fb_base_phyaddr =
 		psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
-
-	omapfb_lock(fbdev);
 
 	/* Calculate the virtual Y to move in the framebuffer */
 	framebuffer->var.yoffset =
 		(aPhyAddr - fb_base_phyaddr) / framebuffer->fix.line_length;
 	framebuffer->var.activate = FB_ACTIVATE_FORCE;
 	fb_set_var(framebuffer, &framebuffer->var);
-
-	omapfb_unlock(fbdev);
 }
 
 #elif defined(FLIP_TECHNIQUE_OVERLAY)
@@ -188,26 +142,27 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
  * Presents the flip in the display with the DSS2 overlay API
  * in: psSwapChain, aPhyAddr
  */
-void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+static void OMAPLFBFlipNoLock(OMAPLFB_SWAPCHAIN *psSwapChain,
+	unsigned long aPhyAddr)
 {
 	OMAPLFB_DEVINFO	*psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
 	struct omapfb_info *ofbi = FB2OFB(framebuffer);
-	struct omapfb2_device *fbdev = ofbi->fbdev;
+	int i;
+
 	unsigned long fb_offset =
 		aPhyAddr - psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
     int overlay_offset = 0; 
 	struct omap_overlay* overlay;
 	struct omap_overlay_info overlay_info;
-	int i;
 
 	fb_offset = aPhyAddr - psDevInfo->sSystemBuffer.sSysAddr.uiAddr;
 
-	omapfb_lock(fbdev);
-
 	for(i = 0; i < ofbi->num_overlays ; i++)
 	{
-        int deltaY = 0;
+		struct omap_dss_device *display = NULL;
+
+		int deltaY = 0;
         int deltaX = 0;
 		overlay = ofbi->overlays[i];
 		overlay->get_overlay_info( overlay, &overlay_info );
@@ -220,27 +175,32 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 
         overlay_offset =  (framebuffer->var.bits_per_pixel >= 24 ? 4 : 2) * (overlay_info.screen_width * deltaY + deltaX);
 
-	overlay_info.paddr = framebuffer->fix.smem_start + fb_offset + overlay_offset;
-	overlay_info.vaddr = framebuffer->screen_base + fb_offset;
-	overlay->set_overlay_info(overlay, &overlay_info);
+		overlay_info.paddr = framebuffer->fix.smem_start + fb_offset + overlay_offset;
+		overlay_info.vaddr = framebuffer->screen_base + fb_offset;
+		overlay->set_overlay_info(overlay, &overlay_info);
 		
-	if(overlay->manager)
-	{
-		if (overlay->manager->device)
+		if(overlay->manager)
 		{
-			overlay->manager->apply(overlay->manager);
-			if(overlay->manager->device->update)
+			if (overlay->manager->device)
 			{
-			overlay->manager->device->update(
-			overlay->manager->device, 0, 0,
-			overlay_info.width,
-			overlay_info.height);
+				overlay->manager->apply(overlay->manager);
+				if(overlay->manager->device->update)
+				{
+					overlay->manager->device->update(
+					overlay->manager->device, 0, 0,
+					overlay_info.width,
+					overlay_info.height);
+				}
 			}
 		}
+
+		if (display && display->update &&
+			display->get_update_mode(display) ==
+			OMAP_DSS_UPDATE_MANUAL)
+			display->update(display, 0, 0, overlay_info.width,
+				overlay_info.height);
+
 	}
-	}
-	
-	omapfb_unlock(fbdev);
 }
 
 #else
@@ -248,27 +208,64 @@ void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
 	FLIP_TECHNIQUE_FRAMEBUFFER or FLIP_TECHNIQUE_OVERLAY
 #endif
 
+void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr)
+{
+	OMAPLFB_DEVINFO	*psDevInfo = (OMAPLFB_DEVINFO *)psSwapChain->pvDevInfo;
+	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
+	struct omapfb_info *ofbi = FB2OFB(framebuffer);
+	struct omapfb2_device *fbdev = ofbi->fbdev;
+
+	omapfb_lock(fbdev);
+	OMAPLFBFlipNoLock(psSwapChain, aPhyAddr);
+	omapfb_unlock(fbdev);
+}
+
 /*
  * Synchronize with the display to prevent tearing
  * On DSI panels the display->sync function is used to handle FRAMEDONE IRQ
  * On DPI panels the display->wait_vsync is used to handle VSYNC IRQ
  * in: psDevInfo
  */
-void OMAPLFBWaitForSync(OMAPLFB_DEVINFO *psDevInfo)
+void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
+	OMAPLFB_FLIP_ITEM *psFlipItem)
 {
 	struct fb_info * framebuffer = psDevInfo->psLINFBInfo;
-	struct omap_dss_device *display = fb2display(framebuffer);
-	if (display)
-	{
-#ifndef CONFIG_FB_OMAP2_FORCE_AUTO_UPDATE
-		if (display->sync) {
-			display->sync(display);
-			return;
-		}
-#endif
-		if (display->wait_vsync)
-			display->wait_vsync(display);
+	struct omapfb_info *ofbi = FB2OFB(framebuffer);
+	struct omapfb2_device *fbdev = ofbi->fbdev;
+	struct omap_dss_device *display;
+	int err = 1;
+
+	omapfb_lock(fbdev);
+
+	display = fb2display(framebuffer);
+
+	/* The framebuffer doesn't have a display attached, just bail out */
+	if (!display) {
+		omapfb_unlock(fbdev);
+		return;
 	}
+
+	if (display->sync &&
+		display->get_update_mode(display) == OMAP_DSS_UPDATE_MANUAL) {
+		/* Wait first for the DSI bus to be released then update */
+		err = display->sync(display);
+		OMAPLFBFlipNoLock(psDevInfo->psSwapChain,
+			(unsigned long)psFlipItem->sSysAddr->uiAddr);
+	} else if (display->wait_vsync) {
+		/*
+		 * Update the video pipelines registers then wait until the
+		 * frame is shown with a VSYNC
+		 */
+		OMAPLFBFlipNoLock(psDevInfo->psSwapChain,
+			(unsigned long)psFlipItem->sSysAddr->uiAddr);
+		err = display->wait_vsync(display);
+	}
+
+	if (err)
+		WARNING_PRINTK("Unable to sync with display %u!",
+			psDevInfo->uDeviceID);
+
+	omapfb_unlock(fbdev);
 }
 
 #if defined(LDM_PLATFORM)
@@ -290,26 +287,6 @@ static void OMAPLFBCommonSuspend(void)
 	OMAPLFBDriverSuspend();
 	bDeviceSuspended = OMAP_TRUE;
 }
-
-#if 0
-/*
- * Function called when the driver is requested to release
- * in: pDevice
- */
-static void OMAPLFBDeviceRelease_Entry(struct device unref__ *pDevice)
-{
-	DEBUG_PRINTK("Requested driver release");
-	OMAPLFBCommonSuspend();
-}
-
-static struct platform_device omaplfb_device = {
-	.name = DEVNAME,
-	.id = -1,
-	.dev = {
-		.release = OMAPLFBDeviceRelease_Entry
-	}
-};
-#endif
 
 #if defined(SGX_EARLYSUSPEND)
 
@@ -413,17 +390,6 @@ static int __init OMAPLFB_Init(void)
 			WARNING_PRINTK("Driver cleanup failed\n");
 		return -ENODEV;
 	}
-#if 0
-	DEBUG_PRINTK("Registering device driver");
-	if (platform_device_register(&omaplfb_device))
-	{
-		WARNING_PRINTK("Unable to register platform device");
-		platform_driver_unregister(&omaplfb_driver);
-		if(OMAPLFBDeinit() != OMAP_OK)
-			WARNING_PRINTK("Driver cleanup failed\n");
-		return -ENODEV;
-	}
-#endif
 	Major = register_chrdev(OMAPLFB_MAJOR,"omaplfb",&omaplfb_fops);
 	if (Major < 0)
 		printk("unable to get major  %d for fb devs!!!!\n", Major);
@@ -431,7 +397,8 @@ static int __init OMAPLFB_Init(void)
 #if defined(SGX_EARLYSUSPEND)
 	omaplfb_early_suspend.suspend = OMAPLFBDriverSuspend_Entry;
         omaplfb_early_suspend.resume = OMAPLFBDriverResume_Entry;
-        omaplfb_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;	
+        //omaplfb_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;	
+	omaplfb_early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
         register_early_suspend(&omaplfb_early_suspend);
 	DEBUG_PRINTK("Registered early suspend support");
 #endif
@@ -475,10 +442,6 @@ static IMG_VOID __exit OMAPLFB_Cleanup(IMG_VOID)
 	/* Unregister the device */
 	 unregister_chrdev(OMAPLFB_MAJOR, "omaplfb");
 #if defined(LDM_PLATFORM)
-#if 0
-	DEBUG_PRINTK(format,...)("Removing platform device");
-	platform_device_unregister(&omaplfb_device);
-#endif
 	DEBUG_PRINTK("Removing platform driver");
 	platform_driver_unregister(&omaplfb_driver);
 #if defined(SGX_EARLYSUSPEND)

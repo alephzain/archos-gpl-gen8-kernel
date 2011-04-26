@@ -77,7 +77,6 @@ typedef struct PVRPDP_SWAPCHAIN_TAG
 	OMAP_BOOL                       bFlushCommands;
 	unsigned long                   ulSetFlushStateRefCount;
 	OMAP_BOOL                       bBlanked;
-	spinlock_t*                     psSwapChainLock;
 	void*                           pvDevInfo;
 
 } OMAPLFB_SWAPCHAIN;
@@ -148,8 +147,12 @@ typedef enum _OMAP_ERROR_
 #ifdef	DEBUG
 #define	DEBUG_PRINTK(format, ...) printk("DEBUG " DRIVER_PREFIX \
 	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
+#define INFO_PRINTK(format, ...) printk("INFO " DRIVER_PREFIX \
+	" (%s %i): " format "\n", __func__, __LINE__, ## __VA_ARGS__)
 #else
 #define	DEBUG_PRINTK(format,...)
+#define INFO_PRINTK(format, ...) printk("pvr: " \
+	format "\n", ## __VA_ARGS__)
 #endif
 
 #define	WARNING_PRINTK(format, ...) printk("WARNING " DRIVER_PREFIX \
@@ -161,7 +164,8 @@ OMAP_ERROR OMAPLFBInit(void);
 OMAP_ERROR OMAPLFBDeinit(void);
 void *OMAPLFBAllocKernelMem(unsigned long ulSize);
 void OMAPLFBFreeKernelMem(void *pvMem);
-void OMAPLFBWaitForSync(OMAPLFB_DEVINFO *psDevInfo);
+void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
+	OMAPLFB_FLIP_ITEM *psFlipItem);
 OMAP_ERROR OMAPLFBGetLibFuncAddr(char *szFunctionName,
 	PFN_DC_GET_PVRJTABLE *ppfnFuncTable);
 void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr);

@@ -28,14 +28,11 @@
 #include <linux/kernel.h>
 #include <linux/console.h>
 #include <linux/fb.h>
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))
-#include <plat/vrfb.h>
-#include <plat/display.h>
-#else
 #include <mach/vrfb.h>
 #include <mach/display.h>
-#endif
+#include <linux/module.h>
+#include <linux/string.h>
+#include <linux/notifier.h>
 
 #ifdef RELEASE
 #include <../drivers/video/omap2/omapfb/omapfb.h>
@@ -44,10 +41,6 @@
 #undef DEBUG
 #include <../drivers/video/omap2/omapfb/omapfb.h>
 #endif
-
-#include <linux/module.h>
-#include <linux/string.h>
-#include <linux/notifier.h>
 
 #include "img_defs.h"
 #include "servicesext.h"
@@ -847,9 +840,7 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	INIT_WORK(&psDevInfo->sync_display_work, OMAPLFBSyncIHandler);
 	psDevInfo->sync_display_wq =
 		__create_workqueue("pvr_display_sync_wq", 1, 1, 1);
-
-	DEBUG_PRINTK("Swap chain will have %u buffers for display %u",
-		(unsigned int)ui32BufferCount, psDevInfo->uDeviceID);
+	
 	/* Link the buffers available like a circular list */
 	for(i=0; i<ui32BufferCount-1; i++)
 	{
@@ -1109,62 +1100,44 @@ static void OMAPLFBSyncIHandler(struct work_struct *work)
 	psFlipItem = &psSwapChain->psFlipItems[psSwapChain->ulRemoveIndex];
 	ulMaxIndex = psSwapChain->ulBufferCount - 1;
 
-	/* Synchronize with the display */
-	OMAPLFBWaitForSync(psDevInfo);
-
 	/* Iterate through the flip items and flip them if necessary */
 	while(psFlipItem->bValid)
 	{	
-		if(psFlipItem->bFlipped)
-		{
-			if(!psFlipItem->bCmdCompleted)
-			{
-				psSwapChain->psPVRJTable->pfnPVRSRVCmdComplete(
-					(IMG_HANDLE)psFlipItem->hCmdComplete,
-					IMG_TRUE);
-				psFlipItem->bCmdCompleted = OMAP_TRUE;
-			}
-			psFlipItem->ulSwapInterval--;
-			
-			if(psFlipItem->ulSwapInterval == 0)
-			{
-				psSwapChain->ulRemoveIndex++;
-				if(psSwapChain->ulRemoveIndex > ulMaxIndex)
-					psSwapChain->ulRemoveIndex = 0;
-				psFlipItem->bCmdCompleted = OMAP_FALSE;
-				psFlipItem->bFlipped = OMAP_FALSE;
-				psFlipItem->bValid = OMAP_FALSE;
-			}
-			else
-			{
-				/*
-			 	 * Here the swap interval is not zero yet
-			 	 * we need to schedule another work until
-				 * it reaches zero
-			 	 */
-				queue_work(psDevInfo->sync_display_wq,
-					&psDevInfo->sync_display_work);
-				goto ExitUnlock;
-			}
-		}
-		else
-		{
-			OMAPLFBFlip(psSwapChain,
-				(unsigned long)psFlipItem->sSysAddr);
-			psFlipItem->bFlipped = OMAP_TRUE;
+		/* Update display */
+		OMAPLFBPresentSync(psDevInfo, psFlipItem);
+
+		psFlipItem->ulSwapInterval--;
+		psFlipItem->bFlipped = OMAP_TRUE;
+
+		if (psFlipItem->ulSwapInterval == 0) {
+
+			/* Mark the flip item as completed to reuse it */
+			psSwapChain->ulRemoveIndex++;
+			if (psSwapChain->ulRemoveIndex > ulMaxIndex)
+				psSwapChain->ulRemoveIndex = 0;
+			psFlipItem->bCmdCompleted = OMAP_FALSE;
+			psFlipItem->bFlipped = OMAP_FALSE;
+			psFlipItem->bValid = OMAP_FALSE;
+
+			psSwapChain->psPVRJTable->pfnPVRSRVCmdComplete(
+				(IMG_HANDLE)psFlipItem->hCmdComplete,
+				IMG_TRUE);
+			psFlipItem->bCmdCompleted = OMAP_TRUE;
+		} else {
 			/*
-			 * If the flip has been presented here then we need
-			 * in the next sync execute the command complete,
-			 * schedule another work
+			 * Here the swap interval is not zero yet
+			 * we need to schedule another work until
+			 * it reaches zero
 			 */
 			queue_work(psDevInfo->sync_display_wq,
 				&psDevInfo->sync_display_work);
-			goto ExitUnlock;
+			break;
 		}
+
 		psFlipItem =
 			&psSwapChain->psFlipItems[psSwapChain->ulRemoveIndex];
 	}
-		
+
 ExitUnlock:
 	mutex_unlock(&psDevInfo->sSwapChainLockMutex);
 }
@@ -1184,6 +1157,7 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 	OMAPLFB_SWAPCHAIN *psSwapChain;
 #if defined(SYS_USING_INTERRUPTS)
 	OMAPLFB_FLIP_ITEM* psFlipItem;
+	unsigned long ulMaxIndex;
 #endif
 
 	if(!hCmdCookie || !pvData)
@@ -1234,20 +1208,9 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 
 	if(psFlipItem->bValid == OMAP_FALSE)
 	{
-		unsigned long ulMaxIndex = psSwapChain->ulBufferCount - 1;
-
-		/*
-		 * If both indexes are equal the queue is empty,
-		 * present immediatly
-		 */
-		if(psSwapChain->ulInsertIndex == psSwapChain->ulRemoveIndex)
-		{
-			OMAPLFBFlip(psSwapChain,
-				(unsigned long)psBuffer->sSysAddr.uiAddr);
-			psFlipItem->bFlipped = OMAP_TRUE;
-		}
-		else
-			psFlipItem->bFlipped = OMAP_FALSE;
+		/* Mark the flip item as not flipped */
+		ulMaxIndex = psSwapChain->ulBufferCount - 1;
+		psFlipItem->bFlipped = OMAP_FALSE;
 
 		/*
 		 * The buffer is queued here, must be consumed by the workqueue
@@ -1263,10 +1226,13 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 			psSwapChain->ulInsertIndex = 0;
 
 		/* Give work to the workqueue to sync with the display */
-		queue_work(psDevInfo->sync_display_wq, &psDevInfo->sync_display_work);
+		queue_work(psDevInfo->sync_display_wq,
+			&psDevInfo->sync_display_work);
 
 		goto ExitTrueUnlock;
-	}
+	} else
+		WARNING_PRINTK("Dropping frame! %p index %lu is the flip "
+			"queue full?", psFlipItem, psSwapChain->ulInsertIndex);
 
 	mutex_unlock(&psDevInfo->sSwapChainLockMutex);
 	return IMG_FALSE;
@@ -1616,19 +1582,8 @@ OMAP_ERROR OMAPLFBInit(void)
 	IMG_UINT32 aui32SyncCountList[OMAPLFB_COMMAND_COUNT][2];
 	int i;
 
-	DEBUG_PRINTK("Initializing 3rd party display driver");
-	DEBUG_PRINTK("Found %u framebuffers", FRAMEBUFFER_COUNT);
-
-#if defined(REQUIRES_TWO_FRAMEBUFFERS)
-	/*
-	 * Fail hard if there isn't at least two framebuffers available
-	 */
-	if(FRAMEBUFFER_COUNT < 2)
-	{
-		ERROR_PRINTK("Driver needs at least two framebuffers");
-		return OMAP_ERROR_INIT_FAILURE;
-	}
-#endif
+	INFO_PRINTK("Initializing 3rd party display driver");
+	INFO_PRINTK("Found %u framebuffers", FRAMEBUFFER_COUNT);
 
 	/*
 	 * Obtain the function pointer for the jump table from
@@ -1649,7 +1604,6 @@ OMAP_ERROR OMAPLFBInit(void)
 			sizeof(OMAPLFB_DEVINFO) * FRAMEBUFFER_COUNT);
 	if(!pDisplayDevices)
 	{
-		pDisplayDevices = NULL;
 		ERROR_PRINTK("Out of memory");
 		return OMAP_ERROR_OUT_OF_MEMORY;
 	}
@@ -1675,10 +1629,10 @@ OMAP_ERROR OMAPLFBInit(void)
 			return OMAP_ERROR_INIT_FAILURE;
 		}
 
-    		/*
+		/*
 		 * Populate each display device structure
 		*/
-		DEBUG_PRINTK("-> Populating display device %i", i);
+		INFO_PRINTK("-> Populating display device %i", i);
 		psDevInfo = &pDisplayDevices[i];
 
 		if(!(*pfnGetPVRJTable)(&psDevInfo->sPVRJTable))
@@ -1698,12 +1652,12 @@ OMAP_ERROR OMAPLFBInit(void)
 		{
 			if(MAX_BUFFERS_FLIPPING == 1)
 			{
-				DEBUG_PRINTK("Flipping support is possible"
+				INFO_PRINTK("Flipping support is possible"
 					" but you decided not to use it, "
 					"no swap chain will be created");
 			}
 
-			DEBUG_PRINTK("Flipping support");
+			INFO_PRINTK("Flipping support");
 			if(psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers >
 				MAX_BUFFERS_FLIPPING)
 			psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers =
@@ -1711,7 +1665,7 @@ OMAP_ERROR OMAPLFBInit(void)
 		}
 		else
 		{
-			DEBUG_PRINTK("Flipping not supported, no swap chain"
+			INFO_PRINTK("Flipping not supported, no swap chain"
 				" will be created");
 		}
 
@@ -1744,7 +1698,7 @@ OMAP_ERROR OMAPLFBInit(void)
 			psDevInfo->sFBInfo.sCPUVAddr;
 		psDevInfo->sSystemBuffer.ulBufferSize =
 			psDevInfo->sFBInfo.ulRoundedBufferSize;
-		DEBUG_PRINTK("Buffers available: %u (%lu bytes per buffer)",
+		INFO_PRINTK("Buffers available: %u (%lu bytes per buffer)",
 			psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers,
 			psDevInfo->sFBInfo.ulBufferSize);
 
@@ -1922,7 +1876,7 @@ void updateOverlay(int x, int y, int w, int h)
     
     
         psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers = (IMG_UINT32)(psDevInfo->sFBInfo.ulFBSize / psDevInfo->sFBInfo.ulRoundedBufferSize);
-        printk("FBSize = %lu  BufferSize = %lu  Height = %lu  Stride = %lu MaxSwapChainBuffers = %lu \n\r", psPVRFBInfo->ulFBSize, psPVRFBInfo->ulBufferSize, psPVRFBInfo->ulHeight, psPVRFBInfo->ulByteStride,psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers);
+        printk("FBSize = %lu  BufferSize = %lu  Height = %lu  Stride = %lu MaxSwapChainBuffers = %u \n\r", psPVRFBInfo->ulFBSize, psPVRFBInfo->ulBufferSize, psPVRFBInfo->ulHeight, psPVRFBInfo->ulByteStride,psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers);
     
     
         psPVRFBInfo->ulRoundedBufferSize = OMAPLFB_PAGE_ROUNDUP(psPVRFBInfo->ulBufferSize);
