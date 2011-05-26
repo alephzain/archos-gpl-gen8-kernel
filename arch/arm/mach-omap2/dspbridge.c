@@ -15,7 +15,7 @@
 #include "prm.h"
 #include "cm.h"
 #ifdef CONFIG_BRIDGE_DVFS
-#include <plat/omap-pm.h>
+#include <mach/omap-pm.h>
 /*
  * The DSP load balancer works on the following logic:
  * Opp frequencies:

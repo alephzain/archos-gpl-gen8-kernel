@@ -85,9 +85,9 @@ static void panel_reset(void)
 
 static int panel_enable(struct omap_dss_device *disp)
 {
-	pr_info("[archos-lcd-qvga28] panel_enable [%s]\n", disp->name);
 	if (panel_state == 1)
 		return -1;
+	pr_info("[archos-lcd-qvga28] panel_enable [%s]\n", disp->name);
 
 	if (GPIO_EXISTS(display_gpio.lcd_pwon)) {
 		gpio_set_value( GPIO_PIN(display_gpio.lcd_pwon), 1 );
