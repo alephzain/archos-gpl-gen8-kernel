@@ -64,6 +64,12 @@ int __init archos_touchscreen_goodix_init(struct goodix_gt80x_platform_data *pda
 	pdata->set_power = &set_power;
 	pdata->set_shutdown = &set_shutdown;
 
+	// MTU units have their X axis inverted and need init v1.
+	if (hardware_rev < 2) {
+		pdata->init_version = 1;
+		pdata->orientation = GOODIX_GT80X_ORIENTATION_INV_X;
+	}
+
 	printk(KERN_DEBUG "%s: irq_gpio %d - irq %d, pwr_gpio %d, shtdwn_gpio %d\n",
 			__FUNCTION__, pdata->irq, ts_irq.nb, ts_pwron.nb, ts_shtdwn.nb);
 

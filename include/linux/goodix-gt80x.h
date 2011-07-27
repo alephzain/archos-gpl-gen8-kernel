@@ -16,8 +16,11 @@ enum {
 	GOODIX_GT80X_ORIENTATION_INV_Y	= 3,
 };
 
+// software orientation flags.
 enum {
-	GOODIX_GT80X_FLAGS_XY_SWAP = (1 << 0),
+	GOODIX_GT80X_FLAGS_INV_X	= (1 << 0),
+	GOODIX_GT80X_FLAGS_INV_Y	= (1 << 1),
+	GOODIX_GT80X_FLAGS_XY_SWAP	= (1 << 2),
 };
 
 struct goodix_gt80x_platform_data {
@@ -25,6 +28,7 @@ struct goodix_gt80x_platform_data {
 
 	int flags;
 	int orientation;
+	int init_version;
 
 	void (*set_power)(int on_off);
 	void (*set_shutdown)(int on_off);

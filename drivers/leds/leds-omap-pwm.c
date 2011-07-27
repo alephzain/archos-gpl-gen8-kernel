@@ -173,32 +173,44 @@ static void omap_pwm_led_set_pwm_cycle(struct omap_pwm_led *led, int cycle)
 	}
 }
 
-static void omap_pwm_led_set(struct led_classdev *led_cdev,
-			     enum led_brightness value)
+static void omap_pwm_led_apply(struct omap_pwm_led *led)
 {
-	struct omap_pwm_led *led = cdev_to_omap_pwm_led(led_cdev);
-
-	led->brightness = value;
-	schedule_work(&led->work);
-}
-
-static void omap_pwm_led_work(struct work_struct *work)
-{
-	struct omap_pwm_led *led = work_to_omap_pwm_led(work);
-
 	if (led->brightness != LED_OFF) {
 		omap_pwm_led_power_on(led);
 		omap_pwm_led_set_pwm_cycle(led, led->brightness);
 	} else {
 		if (led->pdata->invert && led->resumed) {
 			omap_pwm_led_power_on(led);
-			omap_dm_timer_set_pwm(led->intensity_timer, 1, 1,
-				      	OMAP_TIMER_TRIGGER_OVERFLOW_AND_COMPARE);
+			omap_pwm_led_set_pwm_cycle(led, led->brightness);
+		} else {
+			omap_pwm_led_power_off(led);
 		}
-		omap_pwm_led_power_off(led);
 	}
-	
+
 	led->resumed = 0;
+}
+
+
+static void omap_pwm_led_set(struct led_classdev *led_cdev,
+			     enum led_brightness value)
+{
+	struct omap_pwm_led *led = cdev_to_omap_pwm_led(led_cdev);
+
+	led->brightness = value;
+
+#if 0
+	schedule_work(&led->work);
+#else
+	/* cut down latency : we need pwm configured asap */
+	omap_pwm_led_apply(led);
+#endif
+
+}
+
+static void omap_pwm_led_work(struct work_struct *work)
+{
+	struct omap_pwm_led *led = work_to_omap_pwm_led(work);
+	omap_pwm_led_apply(led);
 }
 
 static ssize_t omap_pwm_led_on_period_show(struct device *dev,

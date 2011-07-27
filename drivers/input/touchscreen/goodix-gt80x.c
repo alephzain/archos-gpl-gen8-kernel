@@ -15,15 +15,7 @@
 
 #include <linux/goodix-gt80x.h>
 
-#define DMP_EV if(0)
-
 #define NB_POINTS 5
-
-#define REG_CONF_BASE	0x30
-#define REG_X_MAX	0x3a
-#define REG_Y_MAX	0x3c
-#define REG_CMD		0x69
-#define REG_BUFFER	0x6a
 
 struct goodix_register_map {
 	u8 flags;
@@ -36,6 +28,11 @@ struct goodix_register_map {
 		u8 pressure;
 	} p[NB_POINTS];
 	u8 checksum;
+	u8 conf_base;
+	u8 x_max;
+	u8 y_max;
+	u8 cmd;
+	u8 cmd_buffer;
 } d = {
 	.flags = 0x00,
 	.states = 0x01,
@@ -47,39 +44,69 @@ struct goodix_register_map {
 		{ 0x1c, 0x1d, 0x1e, 0x1f, 0x20 },
 	},
 	.checksum = 0x21,
+	.conf_base = 0x30,
+	.x_max = 0x3a,
+	.y_max = 0x3c,
+	.cmd = 0x69,
+	.cmd_buffer = 0x6a,
 };
 
-#if 0
-u8 twl6030_init_sequence[] = {
-	0x19, 0x05, 0x06, 0x28, 0x02, 0x14, 0x14, 0x10,
-	0x50, 0xB8, 0x14, 0x00, 0x1E, 0x00, 0x01, 0x23,
-	0x45, 0x67, 0x89, 0xAB, 0xCD, 0xE1, 0x00, 0x00,
-	0x00, 0x00, 0x0D, 0xCF, 0x20, 0x03, 0x05, 0x83,
-	0x50, 0x3C, 0x1E, 0xB4, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 
-	0x01,
+u8 twl6030_init_sequences[3][53] = {
+	[0] = {
+		// 0x30 -> 0x37
+		0x19, 0x05, 0x06, 0x28, 0x02, 0x14, 0x14, 0x10,
+		// 0x38 -> 0x3f
+		0x50, 0xB8, 0x14, 0x00, 0x1E, 0x00, 0x01, 0x23,
+		// 0x40 -> 0x47
+		0x45, 0x67, 0x89, 0xAB, 0xCD, 0xE1, 0x00, 0x00,
+		// 0x48 -> 0x4f
+		0x00, 0x00, 0x0D, 0xCF, 0x20, 0x03, 0x05, 0x83,
+		// 0x50 -> 0x57
+		0x50, 0x3C, 0x1E, 0xB4, 0x00, 0x00, 0x00, 0x00,
+		// 0x58 -> 0x5f
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		// 0x60 -> 0x63
+		0x00, 0x00, 0x00, 0x00,
+		// 0x64 : refresh.
+		0x01,
+	},
+	[1] = {
+		// 0x30 -> 0x37
+		0x19, 0x05, 0x03, 0x28, 0x02, 0x14, 0x40, 0x10,
+		// 0x38 -> 0x3f
+		0x3C, 0xF8, 0x14, 0x00, 0x1E, 0x00, 0x01, 0x23,
+		// 0x40 -> 0x47
+		0x45, 0x67, 0x89, 0xAB, 0xCD, 0xE1, 0x00, 0x00,
+		// 0x48 -> 0x4f
+		0x00, 0x00, 0x4D, 0xC0, 0x20, 0x01, 0x01, 0x83,
+		// 0x50 -> 0x57
+		0x50, 0x3C, 0x1E, 0xB4, 0x00, 0x0A, 0x3C, 0x6E,
+		// 0x58 -> 0x5f
+		0x1E, 0x00, 0x50, 0x32, 0x73, 0x00, 0x00, 0x00,
+		// 0x60 -> 0x63
+		0x00, 0x00, 0x00, 0x00,
+		// 0x64 : refresh.
+		0x01,
+	},
+	[2] = {
+		// 0x30 -> 0x37
+		0x19, 0x05, 0x03, 0x28, 0x02, 0x14, 0x40, 0x10,
+		// 0x38 -> 0x3f
+		0x23, 0xFA, 0x14, 0x00, 0x1E, 0x00, 0x01, 0x23,
+		// 0x40 -> 0x47
+		0x45, 0x67, 0x89, 0xAB, 0xCD, 0xE0, 0x00, 0x00,
+		// 0x48 -> 0x4f
+		0x30, 0x32, 0x4D, 0xC0, 0x20, 0x01, 0x01, 0x83,
+		// 0x50 -> 0x57
+		0x50, 0x3C, 0x1E, 0xB4, 0x00, 0x33, 0x2C, 0x01,
+		// 0x58 -> 0x5f
+		0xEC, 0x00, 0x32, 0x32, 0x73, 0x00, 0x00, 0x00,
+		// 0x60 -> 0x63
+		0x00, 0x00, 0x00, 0x00,
+		// 0x64 : refresh.
+		0x01
+	},
 };
-#else
-u8 twl6030_init_sequence[] = {
-	// 0x30 -> 0x37
-	0x19, 0x05, 0x03, 0x28, 0x02, 0x14, 0x40, 0x10,
-	// 0x38 -> 0x3f
-	0x3C, 0xF8, 0x14, 0x00, 0x1E, 0x00, 0x01, 0x23,
-	// 0x40 -> 0x47
-	0x45, 0x67, 0x89, 0xAB, 0xCD, 0xE1, 0x00, 0x00,
-	// 0x48 -> 0x4f
-	0x00, 0x00, 0x4D, 0xC0, 0x20, 0x01, 0x01, 0x83,
-	// 0x50 -> 0x57
-	0x50, 0x3C, 0x1E, 0xB4, 0x00, 0x0A, 0x3C, 0x6E,
-	// 0x58 -> 0x5f
-	0x1E, 0x00, 0x50, 0x32, 0x73, 0x00, 0x00, 0x00,
-	// 0x60 -> 0x63
-	0x00, 0x00, 0x00, 0x00,
-	// 0x64 : refresh.
-	0x01,
-};
-#endif
 
 struct goodix_gt80x_priv {
 	struct i2c_client *client;
@@ -95,12 +122,16 @@ struct goodix_gt80x_priv {
 
 	int flags;
 	int orientation;
+	int init_version;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
 #endif
 
 	int state[NB_POINTS];
+
+	u16 x_max;
+	u16 y_max;
 };
 
 enum {
@@ -138,7 +169,7 @@ static int goodix_gt80x_write(struct i2c_client * client, u8 addr, u8 *value, u8
 	struct i2c_msg msg;
 	int ret;
 
-	char *buff = kzalloc(sizeof(addr) + len, GFP_KERNEL); 
+	char *buff = kzalloc(sizeof(addr) + len, GFP_KERNEL);
 
 	if (!buff)
 		return -ENOMEM;
@@ -206,78 +237,8 @@ static inline int goodix_gt80x_read_u16(struct i2c_client * client, u8 addr, u16
 
 	*value = (buf[0] << 8) | buf[1];
 
-	return ret; 
+	return ret;
 }
-
-#if 0
-static int goodix_gt80x_write_cmd(struct i2c_client * client, u8 cmd_val)
-{
-	return goodix_gt80x_write_u8(client, REG_CMD, cmd_val);
-}
-
-static void dmp(struct i2c_client *client, u8 start, u8 len)
-{
-	u8 buff[256];
-
-	if (goodix_gt80x_read(client, start, (char*) &buff, len) != len) {
-		printk("%s : fail\n", __FUNCTION__);
-	} else {
-		int u;
-		printk("\n");
-		for (u=0; u < len; u++) {
-			switch(start + u) {
-				case 0x00: printk("%15s", "PointFlags"); break;
-				case 0x01: printk("%15s", "PointStates"); break;
-
-				case 0x02: printk("%15s", "x0h"); break;
-				case 0x03: printk("%15s", "x0l"); break;
-				case 0x04: printk("%15s", "y0h"); break;
-				case 0x05: printk("%15s", "y0l"); break;
-				case 0x06: printk("%15s", "p0 pressure"); break;
-
-				case 0x07: printk("%15s", "x1h"); break;
-				case 0x08: printk("%15s", "x1l"); break;
-				case 0x09: printk("%15s", "y1h"); break;
-				case 0x0a: printk("%15s", "y1l"); break;
-				case 0x0b: printk("%15s", "p1 pressure"); break;
-
-				case 0x0c: printk("%15s", "x2h"); break;
-				case 0x0d: printk("%15s", "x2l"); break;
-				case 0x0e: printk("%15s", "y2h"); break;
-				case 0x0f: printk("%15s", "y2l"); break;
-				case 0x10: printk("%15s", "p2 pressure"); break;
-
-				case 0x11: printk("%15s", "x3h"); break;
-				case 0x18: printk("%15s", "x3l"); break;
-				case 0x19: printk("%15s", "y3h"); break;
-				case 0x1a: printk("%15s", "y3l"); break;
-				case 0x1b: printk("%15s", "p3 pressure"); break;
-
-				case 0x1c: printk("%15s", "x4h"); break;
-				case 0x1d: printk("%15s", "x4l"); break;
-				case 0x1e: printk("%15s", "y4h"); break;
-				case 0x1f: printk("%15s", "y4l"); break;
-				case 0x20: printk("%15s", "p4 pressure"); break;
-
-				case 0x21: printk("%15s", "checksum"); break;
-
-				case 0x39: printk("%15s", "ModuleSwitch"); break;
-				case 0x64: printk("%15s", "ConfigFresh"); break;
-
-				default: printk("%15s", "?");
-			}
-
-			printk("/0x%02x = 0x%02x ", u+start, buff[u]);
-
-			if ((u+1) % 8 == 0)
-				printk("\n");
-			else
-				printk(" ");
-		}
-		printk("\n");
-	}
-}
-#endif
 
 static void goodix_gt80x_work_func(struct work_struct *work)
 {
@@ -298,24 +259,31 @@ static void goodix_gt80x_work_func(struct work_struct *work)
 		goto exit_work;
 	}
 
-	DMP_EV dev_err(&priv->client->dev, "F0x%02x S0x%02x ",
+	if (regs[d.flags] & 0x20) {
+		dev_err(&priv->client->dev,
+				"%s: tsp gone wild : discarding input.\n",
+				__FUNCTION__);
+		goto exit_work;
+	}
+
+	dev_dbg(&priv->client->dev, "F0x%02x S0x%02x ",
 			regs[d.flags], regs[d.states]);
 
 	for (i = 0; i < NB_POINTS; i++) {
 
-		DMP_EV printk("- %i:%d x%06d/y%06d/p%03d",
+		dev_dbg(&priv->client->dev, "- %i:%d x%06d/y%06d/p%03d\n",
 				i, !!(regs[d.flags] & (1 << i)),
 				(regs[d.p[i].x_h] << 8) | regs[d.p[i].x_l],
 				(regs[d.p[i].y_h] << 8) | regs[d.p[i].y_l],
 				regs[d.p[i].pressure]);
 
-		// pointer state released, but reported as pressed ? 
+		// pointer state released, but reported as pressed ?
 		// update state and start report if single touch compat is on..
 		if ((priv->state[i] == ST_RELEASED) && (regs[d.flags] & (1 << i))) {
 			priv->state[i] = ST_PRESSED;
 
 			// issue key_press;
-#ifdef SINGLETOUCH_COMPAT 
+#ifdef SINGLETOUCH_COMPAT
 			if (i==1)
 				input_report_key(priv->input_dev, BTN_TOUCH, 1);
 #endif
@@ -340,16 +308,26 @@ static void goodix_gt80x_work_func(struct work_struct *work)
 #endif
 				priv->state[i] = ST_RELEASED;
 			} else {
-				u16 x, y;
+				u16 x, x_raw, y, y_raw;
+
+				x_raw = (regs[d.p[i].x_h] << 8) | regs[d.p[i].x_l];
+				y_raw = (regs[d.p[i].y_h] << 8) | regs[d.p[i].y_l];
+
+				if (priv->flags & GOODIX_GT80X_FLAGS_INV_X)
+					x_raw = priv->x_max - x_raw;
+
+				if (priv->flags & GOODIX_GT80X_FLAGS_INV_Y)
+					y_raw = priv->y_max - y_raw;
+
 
 				if (priv->flags & GOODIX_GT80X_FLAGS_XY_SWAP) {
-					y = (regs[d.p[i].x_h] << 8) | regs[d.p[i].x_l];
-					x = (regs[d.p[i].y_h] << 8) | regs[d.p[i].y_l];
+					x = y_raw;
+					y = x_raw;
 				} else {
-					x = (regs[d.p[i].x_h] << 8) | regs[d.p[i].x_l];
-					y = (regs[d.p[i].y_h] << 8) | regs[d.p[i].y_l];
+					x = x_raw;
+					y = y_raw;
 				}
-				
+
 				// issue point coords and sync
 				input_report_abs(priv->input_dev, ABS_MT_TRACKING_ID, i);
 
@@ -372,8 +350,6 @@ static void goodix_gt80x_work_func(struct work_struct *work)
 
 	input_sync(priv->input_dev);
 
-	DMP_EV printk("\n");
-
 exit_work:
 	enable_irq(priv->irq);
 }
@@ -394,6 +370,8 @@ static int goodix_gt80x_startup_sequence(struct i2c_client *client)
 	struct goodix_gt80x_priv *priv = i2c_get_clientdata(client);
 	int retry = 10;
 	int ret;
+
+	int v = priv->init_version;
 
 	u8 buf;
 
@@ -421,16 +399,18 @@ static int goodix_gt80x_startup_sequence(struct i2c_client *client)
 	// vendor provided init sequence. Should eventually be part
 	// of platform data since not controller specific, but more
 	// related to TSP/Device context.
-	ret = goodix_gt80x_write(client, REG_CONF_BASE, twl6030_init_sequence,
-			sizeof(twl6030_init_sequence));
+	ret = goodix_gt80x_write(client, d.conf_base, twl6030_init_sequences[v],
+			sizeof(twl6030_init_sequences[v]));
 
-	if (ret != sizeof(twl6030_init_sequence))
+	if (ret != sizeof(twl6030_init_sequences[v]))
 		return -ENODEV;
 
 	msleep(20);
 
-	if (goodix_gt80x_write_u8(client, 0x68, priv->orientation) != sizeof(u8))
-		return -ENODEV;
+	if (priv->orientation) {
+		if (goodix_gt80x_write_u8(client, 0x68, priv->orientation) != sizeof(u8))
+			return -ENODEV;
+	}
 
 	return 0;
 }
@@ -439,7 +419,6 @@ static int goodix_gt80x_probe(struct i2c_client *client, const struct i2c_device
 {
 	struct goodix_gt80x_platform_data *pdata = client->dev.platform_data;
 	struct goodix_gt80x_priv *priv;
-	u16 x_max, y_max;
 
 	int ret = 0;
 
@@ -457,8 +436,9 @@ static int goodix_gt80x_probe(struct i2c_client *client, const struct i2c_device
 		priv->set_power = pdata->set_power;
 		priv->set_shutdown = pdata->set_shutdown;
 
-		priv->orientation = pdata->orientation;
 		priv->flags = pdata->flags;
+		priv->orientation = pdata->orientation;
+		priv->init_version = pdata->init_version;
 	}
 
 	priv->wq = create_singlethread_workqueue(id->name);
@@ -492,26 +472,26 @@ static int goodix_gt80x_probe(struct i2c_client *client, const struct i2c_device
 	set_bit(ABS_MT_TRACKING_ID, priv->input_dev->absbit);
 	set_bit(ABS_MT_TOUCH_MAJOR, priv->input_dev->absbit);
 
-	if (goodix_gt80x_read_u16(client, REG_X_MAX, &x_max) != sizeof(u16)) {
+	if (goodix_gt80x_read_u16(client, d.x_max, &priv->x_max) != sizeof(u16)) {
 		ret = -ENODEV;
 		goto err_setup_failed;
 	}
 
-	if (goodix_gt80x_read_u16(client, REG_Y_MAX, &y_max) != sizeof(u16)) {
+	if (goodix_gt80x_read_u16(client, d.y_max, &priv->y_max) != sizeof(u16)) {
 		ret = -ENODEV;
 		goto err_setup_failed;
 	}
 
 	if (priv->flags & GOODIX_GT80X_FLAGS_XY_SWAP) {
-		input_set_abs_params(priv->input_dev, ABS_Y, 0, x_max, 0, 0);
-		input_set_abs_params(priv->input_dev, ABS_X, 0, y_max, 0, 0);
-		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_Y, 0, x_max, 0, 0);
-		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_X, 0, y_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_Y, 0, priv->x_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_X, 0, priv->y_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_Y, 0, priv->x_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_X, 0, priv->y_max, 0, 0);
 	} else {
-		input_set_abs_params(priv->input_dev, ABS_X, 0, x_max, 0, 0);
-		input_set_abs_params(priv->input_dev, ABS_Y, 0, y_max, 0, 0);
-		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_X, 0, x_max, 0, 0);
-		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_Y, 0, y_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_X, 0, priv->x_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_Y, 0, priv->y_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_X, 0, priv->x_max, 0, 0);
+		input_set_abs_params(priv->input_dev, ABS_MT_POSITION_Y, 0, priv->y_max, 0, 0);
 	}
 
 	input_set_abs_params(priv->input_dev, ABS_PRESSURE, 0, 0xff, 0, 0);
@@ -525,7 +505,7 @@ static int goodix_gt80x_probe(struct i2c_client *client, const struct i2c_device
 	}
 
 	ret = request_irq(priv->irq, goodix_gt80x_irq_handler, IRQF_TRIGGER_RISING,
-				client->name, priv);
+			client->name, priv);
 	if (ret) {
 		ret = -ENODEV;
 		dev_err(&client->dev, "request_irq failed\n");
@@ -596,7 +576,7 @@ static int goodix_gt80x_resume(struct i2c_client *client)
 	struct goodix_gt80x_priv *priv = i2c_get_clientdata(client);
 
 	if (goodix_gt80x_startup_sequence(client) < 0)
-		printk("%s: failed ?\n", __FUNCTION__);
+		dev_err(&client->dev, "%s: failed ?\n", __FUNCTION__);
 
 	enable_irq(priv->irq);
 

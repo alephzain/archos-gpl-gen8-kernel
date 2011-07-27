@@ -386,7 +386,7 @@ static void mma7660fc_report_values(void)
 {
 	struct accel_data values;
 	struct mma7660fc_data *data = i2c_get_clientdata(this_client);
-	int i;
+	//int i;
 
 	mma7660fc_get_values(&values);
 
@@ -938,8 +938,8 @@ static int mma7660fc_probe(struct i2c_client *client,
 	}
 
 	i2c_data->pdata = (struct mma7660fc_pdata*) client->dev.platform_data;
-	if (!i2c_data->pdata) {
-		printk(KERN_ERR "mma7660fc_probe: No platform data !!\n");
+	if (!i2c_data->pdata || (i2c_data->pdata->irq <= 0)) {
+		printk(KERN_ERR "mma7660fc_probe: No (valid?) platform data !!\n");
 		err = -ENODEV;
 		goto exit_plat_data_failed;
 	}

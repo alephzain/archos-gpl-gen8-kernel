@@ -206,56 +206,56 @@ static struct archos_tsp_config tsp_config __initdata = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[1] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[2] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[3] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[4] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[5] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[6] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[7] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 175, .mux_cfg = AC3_34XX_GPIO175 },
 		.x_plate_ohms = 220,
-		.pressure_max = 1500,
+		.pressure_max = 250,
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 };
@@ -1041,7 +1041,7 @@ static struct i2c_board_info __initdata board_i2c_bus2_info[] = {
 
 static struct i2c_board_info __initdata board_i2c_bus3_info[] = {
 	{
-		I2C_BOARD_INFO("mma7660fc", 0x4c),	// to fix
+		I2C_BOARD_INFO("mma7660fc", 0x4c),
 		.flags = I2C_CLIENT_WAKE,
 		.platform_data = &board_mma7660fc_pdata,
 	},
@@ -1236,7 +1236,8 @@ static void __init board_init(void)
 	omap_serial_init();
 	usb_musb_init();
 
-	archos_accel_init(&board_mma7660fc_pdata);
+	if (hardware_rev < 6)
+		archos_accel_init(&board_mma7660fc_pdata);
 
 	ads7846_dev_init();
 

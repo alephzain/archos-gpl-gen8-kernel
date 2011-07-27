@@ -580,7 +580,7 @@ static void serial_omap_set_mctrl(struct uart_port *port, unsigned int mctrl)
 	}
 #else
 	/* This would be for cases other than ZOOM boards */
-	mcr |= up->mcr;
+	mcr |= up->mcr &~(UART_MCR_RTS | UART_MCR_DTR | UART_MCR_OUT1 | UART_MCR_OUT2 | UART_MCR_LOOP);
 	serial_out(up, UART_MCR, mcr);
 #endif
 
@@ -726,6 +726,11 @@ static void serial_omap_shutdown(struct uart_port *port)
 		up->port.mctrl |= TIOCM_OUT1;
 	} else
 		up->port.mctrl &= ~TIOCM_OUT2;
+#ifdef CONFIG_MACH_ARCHOS
+	if ((up->pdev->id  - 1) == UART2) {
+		serial_omap_set_mctrl(&up->port, up->port.mctrl &~TIOCM_RTS);
+	} else
+#endif
 	serial_omap_set_mctrl(&up->port, up->port.mctrl);
 	spin_unlock_irqrestore(&up->port.lock, flags);
 
@@ -1594,27 +1599,30 @@ int omap_uart_cts_wakeup(int uart_no, int state)
 		return -EPERM;
 	}
 
+	switch (uart_no) {
+	case UART1:
+		printk(KERN_INFO "Enabling CTS wakeup for UART1\n");
+		padconf_cts = 0x180;  /* CONTROL_PADCONF_UART1_CTS[15:0] */
+		v = omap_ctrl_readw(padconf_cts);
+		break;
+	case UART2:
+		printk(KERN_INFO "Enabling CTS wakeup for UART2\n");
+		padconf_cts = 0x174;  /* CONTROL_PADCONF_UART2_CTS[15:0] */
+		v = omap_ctrl_readw(padconf_cts);
+		break;
+	default:
+		printk(KERN_ERR
+		"CTS Wakeup on Uart%d is not supported\n", uart_no);
+		return -EPERM;
+	}
+	if ( (v & 0x7) != OMAP34XX_MUX_MODE0 ) {
+			printk(KERN_INFO "warning: CTS not in UART mode - mode %d\n", (v & 0x7));
+		return -EPERM;
+	}
 	if (state) {
 		/*
 		 * Enable the CTS for io pad wakeup
 		 */
-		switch (uart_no) {
-		case UART1:
-			printk(KERN_INFO "Enabling CTS wakeup for UART1\n");
-			padconf_cts = 0x180;
-			v = omap_ctrl_readw(padconf_cts);
-			break;
-		case UART2:
-			printk(KERN_INFO "Enabling CTS wakeup for UART2\n");
-			padconf_cts = 0x174;
-			v = omap_ctrl_readw(padconf_cts);
-			break;
-		default:
-			printk(KERN_ERR
-			"CTS Wakeup on Uart%d is not supported\n", uart_no);
-			return -EPERM;
-		}
-
 		v |= ((OMAP3_WAKEUP_EN | OMAP3_OFF_PULL_EN |
 			OMAP3_OFFOUT_VAL | OMAP3_OFFIN_EN |
 			OMAP3_OFF_EN | OMAP2_PULL_UP |
@@ -1640,20 +1648,7 @@ int omap_uart_cts_wakeup(int uart_no, int state)
 		/*
 		 * Disable the CTS capability for io pad wakeup
 		 */
-		switch (uart_no) {
-		case UART1:
-			padconf_cts = 0x180;
-			v = omap_ctrl_readw(padconf_cts);
-			break;
-		case UART2:
-			padconf_cts = 0x174;
-			v = omap_ctrl_readw(padconf_cts);
-			break;
-		default:
-			printk(KERN_ERR
-			"CTS Wakeup on Uart%d is not supported\n", uart_no);
-			return -EPERM;
-		}
+
 
 		v &= (u32)(~(OMAP3_WAKEUP_EN | OMAP3_OFF_PULL_EN |
 				OMAP3_OFF_EN | OMAP3_OFFIN_EN));

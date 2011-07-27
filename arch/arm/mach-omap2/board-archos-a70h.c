@@ -99,37 +99,37 @@ static struct archos_usb_config usb_config __initdata = {
 	.rev[0] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = UNUSED_GPIO,
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 	.rev[1] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = UNUSED_GPIO,
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 	.rev[2] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = { 21, AH14_3630_GPIO21 },
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 	.rev[3] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = { 21, AH14_3630_GPIO21 },
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 	.rev[4] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = { 21, AH14_3630_GPIO21 },
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 	.rev[5] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = { 21, AH14_3630_GPIO21 },
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 	.rev[6] = {
 		.enable_usb_ehci = { 146, AA25_3630_GPIO146 },
 		.enable_usb_hub = { 21, AH14_3630_GPIO21 },
-		.enable_5v = { 144, AB26_34XX_UART2_CTS},
+		.enable_5v = { 144, AB26_34XX_GPIO144},
 	},
 };
 

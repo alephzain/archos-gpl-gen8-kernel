@@ -32,6 +32,7 @@
 #include <mach/clock.h>
 #include <mach/control.h>
 #include <mach/gpio.h>
+#include <mach/mux.h>
 
 #include "prm.h"
 #include "pm.h"
@@ -376,8 +377,12 @@ static inline void omap_uart_enable_rtspullup(struct omap_uart_state *uart)
 		return;
 
 	uart->rts_padvalue = omap_ctrl_readw(uart->rts_padconf);
-	omap_ctrl_writew(0x118 | 0x7, uart->rts_padconf);
-	uart->rts_override = 1;
+	if ( ( uart->rts_padvalue & 0x7 ) == OMAP34XX_MUX_MODE0 ) {
+		/* switch RTS pad to safe mode and turn on pull-up */
+		omap_ctrl_writew( OMAP34XX_PIN_INPUT_PULLUP | OMAP34XX_MUX_MODE7, uart->rts_padconf);
+		uart->rts_override = 1;
+	} else
+		printk("RTS not in UART mode - mode %d\n", ( uart->rts_padvalue & 0x7 ));
 }
 
 static inline void omap_uart_restore(struct omap_uart_state *uart)
@@ -571,6 +576,9 @@ static void omap_uart_wakeup_enable(struct omap_uart_state *uart)
 		u16 v;
 
 		v = omap_ctrl_readw(uart->padconf);
+		if ( (v & 0x7) != OMAP34XX_MUX_MODE0 )
+			printk(KERN_INFO "warning: %s UART %d not in UART mode - mode %d\n", 
+				__FUNCTION__, uart->num, (v & 0x7));
 		v |= OMAP3_PADCONF_WAKEUPENABLE0;
 		omap_ctrl_writew(v, uart->padconf);
 	}
@@ -583,10 +591,10 @@ static void omap_uart_rtspad_init(struct omap_uart_state *uart)
 		return;
 	switch (uart->num) {
 	case 0:
-		uart->rts_padconf = 0x17e;
+		uart->rts_padconf = 0x17e; /* CONTROL_PADCONF_UART1_TX[31:16] */
 		break;
 	case 1:
-		uart->rts_padconf = 0x176;
+		uart->rts_padconf = 0x176; /* CONTROL_PADCONF_UART2_CTS[31:16] */
 		break;
 	default:
 		uart->rts_padconf = 0;
@@ -632,7 +640,7 @@ static void omap_uart_idle_init(struct omap_uart_state *uart)
 #elif defined(CONFIG_MACH_OMAP_ZOOM3)
 			padconf = 0x174;
 #elif defined (CONFIG_MACH_ARCHOS)
-			padconf = 0x174;
+			padconf = 0x174; /* CONTROL_PADCONF_UART2_CTS[15:0] */
 #endif
 			break;
 		case 2:
