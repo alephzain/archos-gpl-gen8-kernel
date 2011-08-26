@@ -812,6 +812,10 @@ static const char *hwcap_str[] = {
 	NULL
 };
 
+#ifdef CONFIG_MACH_ARCHOS
+char * omap_rev_name(void);
+#endif
+
 static int c_show(struct seq_file *m, void *v)
 {
 	int i;
@@ -870,6 +874,7 @@ static int c_show(struct seq_file *m, void *v)
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
 #ifdef CONFIG_MACH_ARCHOS
 	seq_printf(m, "Board\t\t: %04x\n", hardware_rev);
+	seq_printf(m, "OMAP revision\t: %s\n", omap_rev_name());
 #endif
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %08x%08x\n",

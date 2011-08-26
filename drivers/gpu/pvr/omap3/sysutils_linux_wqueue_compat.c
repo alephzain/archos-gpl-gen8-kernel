@@ -121,26 +121,12 @@ static inline IMG_UINT32 scale_by_rate(IMG_UINT32 val, IMG_UINT32 rate1, IMG_UIN
 
 static inline IMG_UINT32 scale_prop_to_SGX_clock(IMG_UINT32 val, IMG_UINT32 rate)
 {
-	if (mpu_opps[vdd1_max_level].rate == MAX_FREQ_ES_1_2)
-	{
-		return scale_by_rate(val, rate, SYS_SGX_CLOCK_SPEED_ES_1_2);
-	}
-	else
-	{
-		return scale_by_rate(val, rate, SYS_SGX_CLOCK_SPEED);
-	}
+	return scale_by_rate(val, rate, SYS_SGX_CLOCK_SPEED_ES_1_2);
 }
 
 static inline IMG_UINT32 scale_inv_prop_to_SGX_clock(IMG_UINT32 val, IMG_UINT32 rate)
 {
-	if (mpu_opps[vdd1_max_level].rate == MAX_FREQ_ES_1_2)
-	{
-		return scale_by_rate(val, SYS_SGX_CLOCK_SPEED_ES_1_2, rate);
-	}
-	else
-	{
-		return scale_by_rate(val, SYS_SGX_CLOCK_SPEED, rate);
-	}
+	return scale_by_rate(val, SYS_SGX_CLOCK_SPEED_ES_1_2, rate);
 }
 
 IMG_VOID SysGetSGXTimingInformation(SGX_TIMING_INFORMATION *psTimingInfo)
@@ -204,7 +190,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 		return PVRSRV_ERROR_UNABLE_TO_ENABLE_CLOCK;
 	}
 
-	if (mpu_opps[vdd1_max_level].rate == MAX_FREQ_ES_1_2)
+	if (omap_rev() == OMAP3630_REV_ES1_2)
 	{
 		lNewRate = clk_round_rate(psSysSpecData->psSGX_FCK, SYS_SGX_CLOCK_SPEED_ES_1_2 + ONE_MHZ);
 	}
@@ -313,14 +299,7 @@ PVRSRV_ERROR EnableSystemClocks(SYS_DATA *psSysData)
 
 		vdd1_max_level = omap_pm_get_max_vdd1_opp();
 
-		if (mpu_opps[vdd1_max_level].rate == MAX_FREQ_ES_1_2)
-		{
-			psCLK = clk_get(NULL, SGX_PARENT_CLOCK_ES_1_2);
-		}
-		else
-		{
-			psCLK = clk_get(NULL, SGX_PARENT_CLOCK);
-		}
+		psCLK = clk_get(NULL, SGX_PARENT_CLOCK_ES_1_2);
 
 		if (IS_ERR(psCLK))
 		{

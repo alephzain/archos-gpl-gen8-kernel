@@ -180,14 +180,18 @@ static void ili9481_gamma_adjust(void)
 
 /* Start Initial Sequence */
 static void ili9481_chip_init(struct omap_dss_device *dev)
-{  
+{
 	pr_debug("ili9481_chip_init.\n");
 
 	WriteCommand_Addr(0x11);	// exit sleep mode
 	msleep(20);
+
+	WriteCommand_Addr(0xB4);
+	WriteCommand_Data(0x00);
+
 	WriteCommand_Addr(0xD0);	// power settings
 	WriteCommand_Data(0x07);	// VC[2:0]
-	WriteCommand_Data(0x41);	// PON,BT[2:0]
+	WriteCommand_Data(0x42);	// PON,BT[2:0]
 	WriteCommand_Data(0x05);	// 11 VCIRE,VRH[3:0]
 
 	if ( dev->ctrl.pixel_size == 16) {
@@ -204,7 +208,7 @@ static void ili9481_chip_init(struct omap_dss_device *dev)
 
 	WriteCommand_Addr(0xD2);	// power for normal mode
 	WriteCommand_Data(0x01);	// AP0[2:0]
-	WriteCommand_Data(0x11);	// DC10[2:0],DC00[2:0]
+	WriteCommand_Data(0x02);	// DC10[2:0],DC00[2:0]
 
 	WriteCommand_Addr(0xC0);	// Panel settings
 	WriteCommand_Data(0x10);	// REV & SM & GS
@@ -214,6 +218,11 @@ static void ili9481_chip_init(struct omap_dss_device *dev)
 	WriteCommand_Data(0x02);	// NDL , PTS[2:0]
 	WriteCommand_Data(0x11);	// PTG , ISC[3:0]
 
+	WriteCommand_Addr(0xC1);
+	WriteCommand_Data(0x10);
+	WriteCommand_Data(0x13);
+	WriteCommand_Data(0x88);
+
 	if ( dev->ctrl.pixel_size == 16) {
 		WriteCommand_Addr(0xC5);	// Frame rate
 		WriteCommand_Data(0x04);	// 56 Hz
@@ -222,27 +231,20 @@ static void ili9481_chip_init(struct omap_dss_device *dev)
 		WriteCommand_Data(0x02);	// 85 Hz
 	}
 	WriteCommand_Addr(0xC6);	// interface control
-	WriteCommand_Data(0x13);	
+	WriteCommand_Data(0x13);
 
 	ili9481_gamma_adjust();
 
-	WriteCommand_Addr(0xE4);
-	WriteCommand_Data(0xA0);
 
-	WriteCommand_Addr(0xF0);
+	WriteCommand_Addr(0xF8);
 	WriteCommand_Data(0x01);
 
-	WriteCommand_Addr(0xF3);
-	WriteCommand_Data(0x20);	//40
-	WriteCommand_Data(0x0F);	//pre buffer
-
-	WriteCommand_Addr(0xF7);
-	WriteCommand_Data(0x80);
+	WriteCommand_Addr(0xFE);
+	WriteCommand_Data(0x00);
+	WriteCommand_Data(0x02);
 
 	WriteCommand_Addr(0x36);	// Set_address_mode
 	WriteCommand_Data(0x0A);	// Horizontal Flip, Pixels in BGR
-
-	msleep(120);
 
 	if ( dev->ctrl.pixel_size == 16) {
 		WriteCommand_Addr(0x3A);	// data format
@@ -251,8 +253,6 @@ static void ili9481_chip_init(struct omap_dss_device *dev)
 		WriteCommand_Addr(0x3A);	// data format
 		WriteCommand_Data(0x66);	// 18 bit
 	}
-
-	WriteCommand_Addr(0x29);	// set display on
 
 	WriteCommand_Addr(0x2A);	// Page Address Set
 	WriteCommand_Data(0x00);	// from 
@@ -271,6 +271,12 @@ static void ili9481_chip_init(struct omap_dss_device *dev)
 	WriteCommand_Data(0x00);	//
 	WriteCommand_Data(0x00);	//
 	WriteCommand_Data(0x00);	// dfm = 0
+
+	msleep(20);
+
+	WriteCommand_Addr(0x29);	// set display on
+
+	msleep(120);
 
 	WriteCommand_Addr(0x2c);	// start transfert image
 

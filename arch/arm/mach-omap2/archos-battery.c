@@ -389,6 +389,10 @@ static int bat_charge_set_RT9502( int level )
 {
 	switch (level) {
 	case 0: /* charger off */
+		if ( read_gpio_dc_detect(bat) ) {
+			printk("Ignore charger off - on DCIN\n");
+			return bat->charge_state;
+		}
 		gpio_set_value_cansleep(GPIO_PIN(bat->charge_enable), 1);
 		return 0;
 		

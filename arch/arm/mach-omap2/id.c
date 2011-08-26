@@ -25,7 +25,13 @@
 static struct omap_chip_id omap_chip;
 
 static unsigned int omap_revision, omap_revision_id;
-static char *rev_name = "ES1.0                         ";
+char *rev_name = "ES1.0                         ";
+
+char * omap_rev_name(void)
+{
+	return rev_name;
+}
+EXPORT_SYMBOL(rev_name);
 
 unsigned int omap_rev(void)
 {

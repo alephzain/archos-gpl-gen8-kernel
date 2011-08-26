@@ -19,6 +19,7 @@
  * that driver is used for the touch screen. */
 static struct archos_gpio ts_pwron = UNUSED_GPIO;
 static struct archos_gpio ts_irq = UNUSED_GPIO;
+static int filter_factor = 1;
 
 /* This enable(1)/disable(0) the voltage for TS */
 static int ads7846_vaux_control(int vaux_cntrl)
@@ -100,7 +101,8 @@ static int ads7846_filter(void *filter_data, int data_idx, int *val)
 		filter_len = 1;
 	else if (delta > 100)
 		filter_len = 2;
-	
+
+	filter_len *= filter_factor;	
 	data = (data * (filter_len-1) + *val) / (filter_len);
 	
 	pr_debug("ads7846_filter: %p %i %i -> %i\n", 
@@ -172,6 +174,9 @@ int __init ads7846_dev_init(void)
 
 	if (tsp_cfg->rev[hardware_rev].bus_num != 0)
 		ts_spi_board_info[0].bus_num = tsp_cfg->rev[hardware_rev].bus_num;
+
+	if (tsp_cfg->rev[hardware_rev].filter_factor != 0)
+		filter_factor = tsp_cfg->rev[hardware_rev].filter_factor;
 
 	if (tsp_cfg->rev[hardware_rev].bus_num == 2) {
 		omap_cfg_reg(AA3_3430_MCSPI2_CLK);

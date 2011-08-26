@@ -59,9 +59,15 @@
 #include <../drivers/media/video/omap/omap_voutdef.h>
 #endif
 
-#define OMAP2_CONTROL_PBIAS 		0x48002520
-#define OMAP2_CONTROL_PBIAS_VMODE0	(1 << 0)
-#define OMAP2_CONTROL_PBIAS_PWRDNZ0	(1 << 1)
+#define OMAP2_CONTROL_PBIAS             0x48002520
+#define OMAP2_CONTROL_PBIAS_VMODE0      (1 << 0)
+#define OMAP2_CONTROL_PBIAS_PWRDNZ0     (1 << 1)
+#define OMAP2_CONTROL_PBIAS_VMODE1      (1 << 8)
+#define OMAP2_CONTROL_PBIAS_PWRDNZ1     (1 << 9)
+
+#define OMAP2_WKUP_CTRL                 0x48002A5C
+#define OMAP2_WKUP_CTRL_GPIO_IO_PWRDNZ  (1 << 6)
+
 
 static struct mma7660fc_pdata board_mma7660fc_pdata;
 static int board_panel_enable_hdmi(struct omap_dss_device *dssdev);
@@ -72,17 +78,28 @@ static void init_buffer_pbias(void)
 {
 	u32 ctrl;
 
+	ctrl = omap_readl(OMAP2_WKUP_CTRL);
+	ctrl &= ~OMAP2_WKUP_CTRL_GPIO_IO_PWRDNZ;
+	omap_writel(ctrl, OMAP2_WKUP_CTRL);
+
 	ctrl = omap_readl(OMAP2_CONTROL_PBIAS);
+	ctrl &= ~OMAP2_CONTROL_PBIAS_PWRDNZ1;
 	ctrl &= ~OMAP2_CONTROL_PBIAS_PWRDNZ0;
 	omap_writel(ctrl, OMAP2_CONTROL_PBIAS);
-	
+
 	ctrl = omap_readl(OMAP2_CONTROL_PBIAS);
 	ctrl &= ~OMAP2_CONTROL_PBIAS_VMODE0;
+	ctrl &= ~OMAP2_CONTROL_PBIAS_VMODE1;
 	omap_writel(ctrl, OMAP2_CONTROL_PBIAS);
 
 	ctrl = omap_readl(OMAP2_CONTROL_PBIAS);
 	ctrl |= OMAP2_CONTROL_PBIAS_PWRDNZ0;
+	ctrl |= OMAP2_CONTROL_PBIAS_PWRDNZ1;
 	omap_writel(ctrl, OMAP2_CONTROL_PBIAS);
+
+	ctrl = omap_readl(OMAP2_WKUP_CTRL);
+	ctrl |= OMAP2_WKUP_CTRL_GPIO_IO_PWRDNZ;
+	omap_writel(ctrl, OMAP2_WKUP_CTRL);
 }
 
 static void __init board_init_irq(void)

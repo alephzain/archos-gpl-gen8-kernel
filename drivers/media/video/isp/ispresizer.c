@@ -453,9 +453,14 @@ int ispresizer_try_pipeline(struct isp_res_device *isp_res,
 			(((64 * sph) + ((pipe->rsz_out_w - 1) * rsz) + 32)
 			 / 256) + 7;
 	} else {
+		/*
+		 * According to TRM we should add 7 here, but it does not
+		 * make any sense and looks like a copy past error so
+		 * replace by 4.
+		 */
 		pipe->rsz_crop.width =
 			(((32 * sph) + ((pipe->rsz_out_w - 1) * rsz) + 16)
-			 / 256) + 7;
+			 / 256) + 4; //7;
 	}
 
 	isp_res->h_resz = rsz;

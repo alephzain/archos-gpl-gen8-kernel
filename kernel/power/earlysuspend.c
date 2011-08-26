@@ -144,6 +144,7 @@ void request_suspend_state(suspend_state_t new_state)
 {
 	unsigned long irqflags;
 	int old_sleep;
+	int request_resume = 0;
 
 	spin_lock_irqsave(&state_lock, irqflags);
 	old_sleep = state & SUSPEND_REQUESTED;
@@ -166,10 +167,12 @@ void request_suspend_state(suspend_state_t new_state)
 	} else if (old_sleep && new_state == PM_SUSPEND_ON) {
 		state &= ~SUSPEND_REQUESTED;
 		wake_lock(&main_wake_lock);
-		queue_work(suspend_work_queue, &late_resume_work);
+		request_resume = 1;
+		//queue_work(suspend_work_queue, &late_resume_work);
 	}
 	requested_suspend_state = new_state;
 	spin_unlock_irqrestore(&state_lock, irqflags);
+	if (request_resume == 1) late_resume(NULL);
 }
 
 suspend_state_t get_suspend_state(void)
