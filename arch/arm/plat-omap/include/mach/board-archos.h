@@ -67,6 +67,7 @@ struct archos_tsp_conf
 	u16 x_plate_ohms;
 	u16 pressure_max;
 	int inversion_flags;
+	int filter_factor;
 };
 
 struct archos_tsp_config
