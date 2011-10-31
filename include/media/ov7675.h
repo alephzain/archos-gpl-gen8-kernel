@@ -29,8 +29,19 @@
 #define OV7675_FRAME_RATE	30
 
 
+enum ov7675_power_state {
+	OV7675_POWER_OFF,
+	OV7675_POWER_ON,
+};
+
+enum ov7675_power_client {
+	OV7675_CLIENT_SYSFS,
+	OV7675_CLIENT_V4L2,
+};
+
 struct ov7675_platform_data {
-	int (*power_set) (struct v4l2_int_device *s, enum v4l2_power on);
+	int (*power_set) (enum ov7675_power_state on);
+	int (*v4l2_power_set) (struct v4l2_int_device *s, enum v4l2_power on);
 	int (*ifparm) (struct v4l2_int_device *s, struct v4l2_ifparm *p);
 	int (*priv_data_set) (struct v4l2_int_device *s, void *);
 	u32 (*set_xclk)(struct v4l2_int_device *s, u32 xclkfreq);

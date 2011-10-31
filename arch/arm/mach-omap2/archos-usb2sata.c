@@ -59,8 +59,18 @@ void usbsata_controller_power( int on_off)
 	if (satavcc == on_off)
 		return;
 
-	gpio_set_value(GPIO_PIN(gpio_sata_pwron), on_off);
-	sataclk_enable(on_off);
+	do {
+		gpio_set_value(GPIO_PIN(gpio_sata_pwron), on_off);
+		sataclk_enable(on_off);
+		msleep(100);
+		if ( on_off && gpio_get_value(GPIO_PIN(gpio_sata_rdy)) == 0) {
+			printk(KERN_WARNING "No SATA_RDY, restart controller!\n");
+			gpio_set_value(GPIO_PIN(gpio_sata_pwron), 0);
+			sataclk_enable(0);
+			msleep(100);
+		} else
+			break;
+	} while(1);
 	
 	satavcc = on_off;
 }

@@ -114,6 +114,7 @@ static void process_cmd_fifo(void);
 
 struct update_struct {
 	int rfbi_module;
+	int first;
 	enum omap_dss_update_mode mode;
 	struct delayed_work polling_work;
 	struct delayed_work latency_work;
@@ -1345,13 +1346,15 @@ static void update_work_func(struct work_struct *work)
 	update = container_of(work, struct update_struct, polling_work);
 	dssdev = rfbi.dssdev[update->rfbi_module];
 
-	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
+	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE || update->mode != OMAP_DSS_UPDATE_AUTO)
 		return;
 	
-	wait_for_completion(&rfbi.update_done);
-	rfbi_push_update(update->rfbi_module, 0, 0,
-			 dssdev->panel.timings.x_res,
-			 dssdev->panel.timings.y_res);
+	if (update->first || wait_for_completion_timeout(&rfbi.update_done, msecs_to_jiffies(100))) {
+		rfbi_push_update(update->rfbi_module, 0, 0,
+				 dssdev->panel.timings.x_res,
+				 dssdev->panel.timings.y_res);
+		update->first = 0;
+	}
 
 	schedule_delayed_work(&update->polling_work, rfbi.update_delay);
 }
@@ -1377,10 +1380,12 @@ static int rfbi_display_set_update_mode(struct omap_dss_device *dssdev,
 
 	if (current_mode != mode) {
 		rfbi.update[rfbi_module].mode = mode;
-		if (mode == OMAP_DSS_UPDATE_AUTO)
+		if (mode == OMAP_DSS_UPDATE_AUTO) {
+			rfbi.update[rfbi_module].first = 1;
 			schedule_delayed_work(&rfbi.update[rfbi_module].polling_work, 0);
-		else
-			cancel_delayed_work(&rfbi.update[rfbi_module].polling_work);
+		} else {
+			cancel_delayed_work_sync(&rfbi.update[rfbi_module].polling_work);
+		}
 	}
 	return 0;
 }
@@ -1471,6 +1476,8 @@ static void rfbi_display_disable(struct omap_dss_device *dssdev)
 
 static int rfbi_display_suspend(struct omap_dss_device *dssdev)
 {
+	int rfbi_module;
+
 	DSSDBG("rfbi_display_suspend\n");
 
 	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
@@ -1478,7 +1485,10 @@ static int rfbi_display_suspend(struct omap_dss_device *dssdev)
 
 	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
 
-	wait_for_completion(&rfbi.update_done);
+	rfbi_module = rfbi_find_display(dssdev);
+	if (rfbi.update[rfbi_module].mode == OMAP_DSS_UPDATE_AUTO) {
+		cancel_delayed_work_sync(&rfbi.update[rfbi_module].polling_work);
+	}
 
 	rfbi_enable_clocks(1);
 
@@ -1495,6 +1505,7 @@ static int rfbi_display_suspend(struct omap_dss_device *dssdev)
 
 static int rfbi_display_resume(struct omap_dss_device *dssdev)
 {
+	int rfbi_module;
 
 	DSSDBG("rfbi_display_resume\n");
 
@@ -1510,6 +1521,12 @@ static int rfbi_display_resume(struct omap_dss_device *dssdev)
 	rfbi_display_enable(dssdev);
 
 	rfbi_enable_clocks(0);
+
+	rfbi_module = rfbi_find_display(dssdev);
+	if (rfbi.update[rfbi_module].mode == OMAP_DSS_UPDATE_AUTO) {
+		rfbi.update[rfbi_module].first = 1;
+		schedule_delayed_work(&rfbi.update[rfbi_module].polling_work, 0);
+	}
 
 	return 0;
 }

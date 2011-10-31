@@ -495,6 +495,8 @@ static void dcin_read_dc_detect_delayed( struct work_struct *work)
 			gpio_set_value_cansleep(GPIO_PIN(bat->charge_enable), 1);
 		}
 	}
+	power_supply_changed(&bat->main_battery);	// send uevent
+
 }
 
 static irqreturn_t dcin_irq_handler(int irqno, void *data)

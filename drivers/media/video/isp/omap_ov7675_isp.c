@@ -56,6 +56,8 @@ static int reset_gpio;
 static int pwdn_gpio;
 static struct regulator * vdda;
 
+static struct device *isp_dev = NULL;
+
 static struct omap34xxcam_sensor_config cam_hwc = {
 	.sensor_isp = 0,
 	.capture_mem = PAGE_ALIGN(640 * 480 * 2) * 6,
@@ -98,20 +100,55 @@ static struct isp_interface_config ov7675_if_config = {
 	.cam_mclk = CM_CAM_MCLK_HZ,
 };
 
-static int ov7675_sensor_power_set(struct v4l2_int_device *s, enum v4l2_power power)
+static int ov7675_sensor_power_set(enum ov7675_power_state power)
+{
+	switch (power) {
+	case OV7675_POWER_OFF:
+		/* Power Down Sequence */
+		/* PWDN is active HIGH */
+		gpio_set_value(pwdn_gpio, 1);
+		isp_disable_mclk(dev_get_drvdata(isp_dev));
+		isp_dev = NULL;
+		isp_put();
+		break;
+
+	case OV7675_POWER_ON:
+		isp_dev = isp_get();
+
+		isp_enable_mclk(isp_dev);
+		gpio_set_value(pwdn_gpio, 0);
+
+		/* Power Up Sequence */
+		// fyi, regulator_enable takes +/-8ms
+
+		/* Give sensor sometime to get out of the reset.
+		 * Datasheet says >=5 ms.
+		 */
+		msleep(10);
+
+		/* PWDN is active HIGH. Set LOW to release
+		 * PWDN at the end of the power up sequence.
+		 */
+		gpio_set_value(pwdn_gpio, 0);
+
+		/* We need to wait a little before any I2C access.
+		 * Datasheet says >= 20 ms.
+		 */
+		msleep(40);
+		break;
+	}
+
+	return 0;
+}
+
+static int ov7675_sensor_v4l2_power_set(struct v4l2_int_device *s, enum v4l2_power power)
 {
 	struct omap34xxcam_videodev *vdev = s->u.slave->master->priv;
-	struct isp_device *isp = dev_get_drvdata(vdev->cam->isp);
 	static enum v4l2_power previous_power = V4L2_POWER_OFF;
 
 	switch (power) {
 	case V4L2_POWER_OFF:
 		printk("ov7675_sensor_power_set : Power OFF...\n");
-		/* Power Down Sequence */
-		/* PWDN is active HIGH */
-		gpio_set_value(pwdn_gpio, 1);
-		if (previous_power != V4L2_POWER_OFF)
-			isp_disable_mclk(isp);
 		break;
 		
 	case V4L2_POWER_STANDBY:
@@ -121,23 +158,6 @@ static int ov7675_sensor_power_set(struct v4l2_int_device *s, enum v4l2_power po
 
 			/* Power Up Sequence */
 			isp_configure_interface(vdev->cam->isp, &ov7675_if_config);
-
-			// fyi, regulator_enable takes +/-8ms
-
-			/* Give sensor sometime to get out of the reset.
-			 * Datasheet says >=5 ms.
-			 */
-			msleep(10);
-
-			/* PWDN is active HIGH. Set LOW to release
-			 * PWDN at the end of the power up sequence.
-			 */
-			gpio_set_value(pwdn_gpio, 0);
-
-			/* We need to wait a little before any I2C access.
-			 * Datasheet says >= 20 ms.
-			 */
-			msleep(40);
 		}
 		break;
 	}
@@ -149,10 +169,12 @@ static int ov7675_sensor_power_set(struct v4l2_int_device *s, enum v4l2_power po
 
 static u32 ov7675_sensor_set_xclk(struct v4l2_int_device *s, u32 xclkfreq)
 {
-	struct omap34xxcam_videodev *vdev = s->u.slave->master->priv;
 	int ret;
 
-	ret = isp_set_xclk(vdev->cam->isp, xclkfreq, OV7675_USE_XCLKA);
+	if (!isp_dev)
+		return -1;
+
+	ret = isp_set_xclk(isp_dev, xclkfreq, OV7675_USE_XCLKA);
 	printk("ov7675_sensor_set_xclk : Setting XCLK to %d (needed = %d)...\n", ret, xclkfreq);
 	if ((xclkfreq != 0 && ret == 0) || (xclkfreq == 0 && ret != 0))
 		return -1;
@@ -162,6 +184,7 @@ static u32 ov7675_sensor_set_xclk(struct v4l2_int_device *s, u32 xclkfreq)
 
 static struct ov7675_platform_data ov7675_pdata = {
 	.power_set      = ov7675_sensor_power_set,
+	.v4l2_power_set = ov7675_sensor_v4l2_power_set,
 	.priv_data_set  = ov7675_sensor_set_prv_data,
 	.set_xclk	= ov7675_sensor_set_xclk,
 	.ifparm		= NULL,

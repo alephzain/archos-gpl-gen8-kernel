@@ -421,6 +421,16 @@ static const s32 icon321_port_spec[] = {
 	0
 };
 
+static const s32 alcatel_port_spec[] = {
+    HSO_INTF_BULK | HSO_PORT_DIAG,
+    HSO_INTF_BULK | HSO_PORT_APP,
+    HSO_INTF_BULK | HSO_PORT_APP,
+    HSO_INTF_BULK | HSO_PORT_APP,
+    HSO_INTF_BULK | HSO_PORT_APP,
+    HSO_INTF_BULK | HSO_PORT_MODEM,
+    0
+};
+
 #define default_port_device(vendor, product)	\
 	USB_DEVICE(vendor, product),	\
 		.driver_info = (kernel_ulong_t)default_port_spec
@@ -429,6 +439,10 @@ static const s32 icon321_port_spec[] = {
 	USB_DEVICE(vendor, product),	\
 		.driver_info = (kernel_ulong_t)icon321_port_spec
 
+#define alcatel_port_device(vendor, product)    \
+    USB_DEVICE(vendor, product),    \
+        .driver_info = (kernel_ulong_t)alcatel_port_spec
+        
 /* list of devices we support */
 static const struct usb_device_id hso_ids[] = {
 	{default_port_device(0x0af0, 0x6711)},
@@ -465,6 +479,8 @@ static const struct usb_device_id hso_ids[] = {
 	{USB_DEVICE(0x0af0, 0x7361)},
 	{USB_DEVICE(0x0af0, 0xd057)},
 	{USB_DEVICE(0x0af0, 0xd055)},
+	{alcatel_port_device(0x1bbb, 0x0017)},
+	{alcatel_port_device(0x1bbb, 0x00b7)},
 	{}
 };
 MODULE_DEVICE_TABLE(usb, hso_ids);

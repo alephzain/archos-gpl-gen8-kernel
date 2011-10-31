@@ -626,6 +626,16 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 			if ((devctl & MUSB_DEVCTL_VBUS)
 					== (3 << MUSB_DEVCTL_VBUS_SHIFT)) {
 				musb->xceiv.state = OTG_STATE_A_HOST;
+				//
+				//	REVISIT!!!: 
+				//	Exists a better solution
+				//	to stop the pending timer.
+				//	The musb_do_idle overwrites the 
+				//	state setup that is already done above.
+				//	Happens with the usb_switchmode tool
+				//
+				/* reset pending timer */
+				musb_platform_try_idle(musb, 0);
 				hcd->self.is_b_host = 0;
 			}
 			break;
@@ -767,6 +777,7 @@ static irqreturn_t musb_stage2_irq(struct musb *musb, u8 int_usb,
 				otg_state_string(musb),
 				MUSB_MODE(musb), devctl);
 		handled = IRQ_HANDLED;
+printk("musb_stage2_irq disconnect: %d\n", musb->xceiv.state);
 
 		switch (musb->xceiv.state) {
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
