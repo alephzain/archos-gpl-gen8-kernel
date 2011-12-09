@@ -68,6 +68,7 @@ struct archos_tsp_conf
 	u16 pressure_max;
 	int inversion_flags;
 	int filter_factor;
+	int filter_type;
 };
 
 struct archos_tsp_config

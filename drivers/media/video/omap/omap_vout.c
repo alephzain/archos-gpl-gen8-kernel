@@ -190,7 +190,7 @@ module_param(vid2_static_vrfb_alloc, bool, S_IRUGO);
 MODULE_PARM_DESC(vid2_static_vrfb_alloc, "Static allocation of the VRFB \
 		buffer for video2 device");
 
-module_param(debug, bool, S_IRUGO);
+module_param(debug, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
 
 /* Local Helper functions */
@@ -555,8 +555,8 @@ static int omap_vout_vrfb_buffer_setup(struct omap_vout_device *vout,
 	}
 	if (rotation_enabled(vout->rotation)) { 
 		for (i = 0; i < *count; i++) {
-			if (vout->flg_720 == VIDEO_720_ENABLE ||
-		    	vout->use_isp_rsz_for_downscale) {
+			if (vout->flg_720 == VIDEO_720_ENABLE 
+			    || vout->use_isp_rsz_for_downscale) {
 				width = vout->win.w.width;
 				height = vout->win.w.height;
 			} else {
@@ -827,8 +827,8 @@ int omapvid_apply_changes(struct omap_vout_device *vout)
 		if (!ovl->manager || !ovl->manager->device)
 			return -EINVAL;
 		ovl->manager->apply(ovl->manager);
-		if (ovl->manager->device->update) {
-			device = ovl->manager->device;
+		device = ovl->manager->device;
+		if (!(device->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE) && device->update) {
 			device->update(device, 0, 0,
 				       device->panel.timings.x_res,
 				       device->panel.timings.y_res);

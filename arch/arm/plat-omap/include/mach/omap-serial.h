@@ -33,6 +33,18 @@
 					         IO_ADDRESS(OMAP_UART3_BASE) ))
 extern unsigned int fcr[MAX_UARTS];
 
+/* extensions */
+#define UART_IER_CTSI		0x80 /* Enable Clear To Send interrupt */
+
+struct serial_omap_platform_data {
+	irqreturn_t (*irq_handler)(int irq, void *ctx); /* irq handler cb*/
+	void *ctx;					/* ctx for irq_handler */
+	int irq_enable;					/* irq enabled / disabled state */
+	unsigned long ier_additional;			/* additional irqs to register */
+	int ignore_timeout;				/* do not check last activity */
+
+};
+
 int omap_uart_active(int num);
 int omap_uart_cts_wakeup(int uart_no, int state);
 void omap_uart_enable_clock_from_irq(int uart_num);

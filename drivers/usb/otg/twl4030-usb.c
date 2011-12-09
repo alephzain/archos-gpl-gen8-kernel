@@ -754,6 +754,7 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 #ifdef CONFIG_TPS65921_CHARGE_DETECT
 			if ( twl->enable_charge_detect && linkstat == USB_LINK_VBUS ) {
 				u8 usb_dtc_ctrl;	
+				int i;
 
 				twl4030_usb_power(twl, 1);
 				/* disable default D+/D- pull-downs */
@@ -765,9 +766,17 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 				twl4030_i2c_write_u8(TPS65921_MODULE_ACCESSORY_VINTDIG, 0, ACCIMR1);
 
 				init_completion(&twl->charge_detect_done);
-				if (!wait_for_completion_timeout( &twl->charge_detect_done, msecs_to_jiffies(500))) {
-					printk("charge_detect_done timeout\n");
+
+				/* as the Accessory IRQ is not generated reliably, poll ISR here, too */
+				for (i=0; i<10; i++) {
+					int isr;
+					if (wait_for_completion_timeout( &twl->charge_detect_done, msecs_to_jiffies(50)))
+						break;
+					if ( (isr=twl4030_readb(twl, TPS65921_MODULE_ACCESSORY_VINTDIG, ACCISR1)) & USB_CHRG_TYPE_ISR1)
+						break;
 				}
+				/* clear ISR */
+				twl4030_i2c_write_u8(TPS65921_MODULE_ACCESSORY_VINTDIG, USB_CHRG_TYPE_ISR1, ACCISR1);
 
 				usb_dtc_ctrl = twl4030_readb(twl, TPS65921_MODULE_ACCESSORY_VINTDIG, USB_DTCT_CTRL);
 
@@ -1081,8 +1090,10 @@ static int __init twl4030_usb_probe(struct platform_device *pdev)
 		/* disable default D+/D- pull-downs - they would interfere with charger detection */
 		twl4030_usb_write( twl, TWL4030_OTG_CTRL_CLR, TWL4030_OTG_CTRL_DMPULLDOWN | TWL4030_OTG_CTRL_DPPULLDOWN);
 
-		/* use default value */
-		twl4030_i2c_write_u8(TPS65921_MODULE_ACCESSORY_VINTDIG, 0x01, ACCSIHCTRL);
+		/* no pending event support */
+		twl4030_i2c_write_u8(TPS65921_MODULE_ACCESSORY_VINTDIG, 0x03, ACCSIHCTRL);
+		/* clear ISR - boot loader could have triggered an IRQ, but not handled it */
+		twl4030_i2c_write_u8(TPS65921_MODULE_ACCESSORY_VINTDIG, USB_CHRG_TYPE_ISR1, ACCISR1);
 
 		/* turn on HW charge detection */
 		/* NB: CSR OMAPS00220841 - work-around: first turn on SW detection to reset FSM, then turn on HW detection */

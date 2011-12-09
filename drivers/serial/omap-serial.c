@@ -465,6 +465,7 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 {
 	struct uart_omap_port *up = dev_id;
 	unsigned int iir, lsr;
+	struct serial_omap_platform_data *data = up->pdev->dev.platform_data;
 
 	/*
 	 * This will enable the clock for some reason if the
@@ -473,6 +474,9 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 	 * just shutdown the ICK because of inactivity.
 	 */
 	omap_uart_enable_clock_from_irq(up->pdev->id-1);
+	if (data && data->irq_handler) {
+		int ret = data->irq_handler(irq, data->ctx);
+	}
 
 	iir = serial_in(up, UART_IIR);
 	if (iir & UART_IIR_NO_INT)
@@ -605,14 +609,22 @@ static void serial_omap_break_ctl(struct uart_port *port, int break_state)
 static int serial_omap_startup(struct uart_port *port)
 {
 	struct uart_omap_port *up = (struct uart_omap_port *)port;
+	struct serial_omap_platform_data *data = up->pdev->dev.platform_data;
+
 	unsigned long flags;
 	int irq_flags = 0;
 	int retval;
+
+	up->ier = 0;
 
 	/*Enable the UART CTS wakeup for UART1,UART2*/
 	if (((up->pdev->id - 1) == UART1) || ((up->pdev->id  - 1) == UART2))
 		omap_uart_cts_wakeup((up->pdev->id - 1), 1);
 
+	if (data) {
+		up->ier |= data->ier_additional;
+		serial_out(up, UART_IER, up->ier);
+	}
 
 	/* Zoom2 has GPIO_102 connected to Serial device:
 	 * Active High
@@ -700,7 +712,7 @@ static int serial_omap_startup(struct uart_port *port)
 	* are set via set_termios(), which will be occurring imminently
 	* anyway, so we don't enable them here.
 	*/
-	up->ier = UART_IER_RLSI | UART_IER_RDI;
+	up->ier |= UART_IER_RLSI | UART_IER_RDI;
 	serial_out(up, UART_IER, up->ier);
 
 	isr8250_activity = jiffies;
@@ -1495,6 +1507,11 @@ static int serial_omap_probe(struct platform_device *pdev)
 		up->uart_dma.rx_timeout =
 			CONFIG_SERIAL_OMAP_UART2_RXDMA_TIMEOUT;
 #endif
+		struct serial_omap_platform_data *data = up->pdev->dev.platform_data;
+		if (data) {
+			up->ier |= data->ier_additional;
+			serial_out(up, UART_IER, up->ier);
+		}
 	} else if (pdev->id == (UART3+1)) {
 #ifdef CONFIG_SERIAL_OMAP_DMA_UART3
 		up->use_dma = 1;
@@ -1728,11 +1745,14 @@ int omap_uart_active(int num)
 	struct uart_omap_port *up = ui[num];
 	struct circ_buf *xmit;
 	unsigned int status;
+	struct serial_omap_platform_data *data = up->pdev->dev.platform_data;
 
-	/* check for recent driver activity */
-	/* if from now to last activty < 5 second keep clocks on */
-	if ((jiffies_to_msecs(jiffies - isr8250_activity) < 5000))
-		return 1;
+	if (!data || !data->ignore_timeout) {
+		/* check for recent driver activity */
+		/* if from now to last activty < 5 second keep clocks on */
+		if ((jiffies_to_msecs(jiffies - isr8250_activity) < 5000))
+			return 1;
+	}
 
 	xmit = &up->port.info->xmit;
 	if (!(uart_circ_empty(xmit) || uart_tx_stopped(&up->port)))

@@ -40,6 +40,9 @@
 
 #define DEFAULT_TIMEOUT (5 * HZ)
 
+#define DECT_PORT	UART2
+#define DECT_TIMEOUT_MS	50
+
 struct omap_uart_state {
 	int num;
 	int can_sleep;
@@ -60,9 +63,14 @@ struct omap_uart_state {
 	int clocked;
 
 	struct plat_serial8250_port *p;
+	struct serial_omap_platform_data *pdata;
 	struct list_head node;
 
 	int use_dma;
+
+	/* Enable RTS only after interrupted instead of whenever PM checks for events */
+	int late_rts;
+
 #if defined(CONFIG_ARCH_OMAP3) && defined(CONFIG_PM)
 	int context_valid;
 
@@ -182,6 +190,15 @@ static struct resource omap2_quaduart_resources[] = {
 };
 #endif
 
+static irqreturn_t omap_uart_interrupt(int irq, void *dev_id);
+
+static struct serial_omap_platform_data omap2_uart2_platform_data = {
+	.irq_handler = omap_uart_interrupt,
+	.ctx = &omap_uart[1],
+	.ier_additional = UART_IER_CTSI,
+	.ignore_timeout = 1,
+};
+
 /* OMAP UART platform structure */
 static struct platform_device uart1_device = {
 	.name			= "omap-uart",
@@ -194,6 +211,9 @@ static struct platform_device uart2_device = {
 	.id			= 2,
 	.num_resources		= ARRAY_SIZE(omap2_uart2_resources),
 	.resource		= omap2_uart2_resources,
+	.dev            = {
+		.platform_data = &omap2_uart2_platform_data,
+		},
 };
 static struct platform_device uart3_device = {
 	.name			= "omap-uart",
@@ -414,6 +434,8 @@ static void omap_uart_block_sleep(struct omap_uart_state *uart)
 
 	omap_uart_smart_idle_enable(uart, 0);
 	uart->can_sleep = 0;
+	if (uart->late_rts)
+		omap_uart_disable_rtspullup(uart);
 	if (uart->timeout)
 		mod_timer(&uart->timer, jiffies + uart->timeout);
 	else
@@ -425,6 +447,8 @@ static void omap_uart_allow_sleep(struct omap_uart_state *uart)
 	if (!uart->clocked)
 		return;
 
+	if (uart->late_rts)
+		omap_uart_enable_rtspullup(uart);
 	omap_uart_smart_idle_enable(uart, 1);
 	uart->can_sleep = 1;
 	del_timer(&uart->timer);
@@ -453,7 +477,8 @@ void omap_uart_prepare_idle(int num, int power_state)
 
 	list_for_each_entry(uart, &uart_list, node) {
 		if (num == uart->num && uart->can_sleep) {
-			omap_uart_enable_rtspullup(uart);
+			if (!uart->late_rts)
+				omap_uart_enable_rtspullup(uart);
 			omap_uart_disable_clocks(uart, power_state);
 			return;
 		}
@@ -467,7 +492,8 @@ void omap_uart_resume_idle(int num)
 	list_for_each_entry(uart, &uart_list, node) {
 		if (num == uart->num) {
 			omap_uart_restore(uart);
-			omap_uart_disable_rtspullup(uart);
+			if (!uart->late_rts)
+				omap_uart_disable_rtspullup(uart);
 
 			/* Check for IO pad wakeup */
 			if (cpu_is_omap34xx() && uart->padconf) {
@@ -534,8 +560,10 @@ int omap_uart_can_sleep(void)
 			continue;
 		}
 
-		/* This UART can now safely sleep. */
-		omap_uart_allow_sleep(uart);
+		if (uart->num != DECT_PORT) {
+			/* This UART can now safely sleep. */
+			omap_uart_allow_sleep(uart);
+		}
 	}
 
 	return can_sleep;
@@ -554,7 +582,11 @@ static irqreturn_t omap_uart_interrupt(int irq, void *dev_id)
 {
 	struct omap_uart_state *uart = dev_id;
 
-	omap_uart_block_sleep(uart);
+	if (uart->pdata) {
+		if (uart->pdata->irq_enable)
+			omap_uart_block_sleep(uart);
+	} else
+		omap_uart_block_sleep(uart);
 
 	return IRQ_NONE;
 }
@@ -608,7 +640,13 @@ static void omap_uart_idle_init(struct omap_uart_state *uart)
 	int ret, irq_flags = 0;
 
 	uart->can_sleep = 0;
-	uart->timeout = sleep_timeout;
+
+	if (uart->num == DECT_PORT) {
+		uart->timeout = msecs_to_jiffies(DECT_TIMEOUT_MS);
+	} else {
+		uart->timeout = sleep_timeout;
+	}
+
 	setup_timer(&uart->timer, omap_uart_idle_timer,
 		    (unsigned long) uart);
 	mod_timer(&uart->timer, jiffies + uart->timeout);
@@ -690,23 +728,26 @@ static void omap_uart_idle_init(struct omap_uart_state *uart)
 	 * This is supported by omap-serial
 	 * driver
 	 */
-	if (uart->num == 2 || uart->num == 3)
+	if (uart->num == 1 || uart->num == 2 || uart->num == 3)
 		omap_uart_wakeup_enable(uart);
 
 #elif defined(CONFIG_SERIAL_8250)
 		omap_uart_wakeup_enable(uart);
 #endif
 
-	p->flags |= UPF_SHARE_IRQ;
+	if (uart->pdata && uart->pdata->irq_handler) {
+		uart->pdata->irq_enable = true;
+	} else {
+		p->flags |= UPF_SHARE_IRQ;
 
-	if (p->flags & UPF_SHARE_IRQ)
-		irq_flags |= IRQF_SHARED;
-	if (p->flags & UPF_TRIGGER_HIGH)
-		irq_flags |= IRQF_TRIGGER_HIGH;
+		if (p->flags & UPF_SHARE_IRQ)
+			irq_flags |= IRQF_SHARED;
+		if (p->flags & UPF_TRIGGER_HIGH)
+			irq_flags |= IRQF_TRIGGER_HIGH;
 
-	ret = request_irq(p->irq, omap_uart_interrupt, irq_flags,
-			  "serial idle", (void *)uart);
-
+		ret = request_irq(p->irq, omap_uart_interrupt, irq_flags,
+				  "serial idle", (void *)uart);
+	}
 	WARN_ON(ret);
 }
 
@@ -716,16 +757,20 @@ int omap_uart_enable_irqs(int enable)
 	struct omap_uart_state *uart;
 
 	list_for_each_entry(uart, &uart_list, node) {
-		if (enable) {
-			int irq_flags = 0;
-			if (uart->p->flags & UPF_SHARE_IRQ)
-				irq_flags |= IRQF_SHARED;
-			if (uart->p->flags & UPF_TRIGGER_HIGH)
-				irq_flags |= IRQF_TRIGGER_HIGH;
-			ret += request_irq(uart->p->irq, omap_uart_interrupt,
-				irq_flags, "serial idle", (void *)uart);
-		} else
-			free_irq(uart->p->irq, (void *)uart);
+		if (uart->pdata && uart->pdata->irq_handler) {
+			uart->pdata->irq_enable = enable;
+		} else {
+			if (enable) {
+				int irq_flags = 0;
+				if (uart->p->flags & UPF_SHARE_IRQ)
+					irq_flags |= IRQF_SHARED;
+				if (uart->p->flags & UPF_TRIGGER_HIGH)
+					irq_flags |= IRQF_TRIGGER_HIGH;
+				ret += request_irq(uart->p->irq, omap_uart_interrupt,
+					irq_flags, "serial idle", (void *)uart);
+			} else
+				free_irq(uart->p->irq, (void *)uart);
+		}
 	}
 	return ret;
 }
@@ -772,10 +817,8 @@ void omap_uart_enable_clock_from_irq(int uart_num)
 
 	list_for_each_entry(uart, &uart_list, node) {
 		if (uart_num == uart->num) {
-			if (uart->clocked)
-				break;
 			omap_uart_block_sleep(uart);
-			break;
+			return;
 		}
 	}
 	return;
@@ -815,6 +858,11 @@ void __init omap_serial_init(void)
 			p->membase = NULL;
 			p->mapbase = 0;
 			continue;
+		}
+
+		if (i == DECT_PORT) {
+			uart->late_rts = true;
+			uart->pdata = &omap2_uart2_platform_data;
 		}
 
 		uart->num = i;

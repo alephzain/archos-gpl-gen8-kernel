@@ -115,6 +115,53 @@ static int ads7846_filter(void *filter_data, int data_idx, int *val)
 	return ADS7846_FILTER_OK;
 }
 
+static int ads7846_filter_type1(void *filter_data, int data_idx, int *val)
+{
+	struct ads7846_filter_data *filt = filter_data;
+	int filter_len = FILTER_LEN;
+	int delta;
+	int data;
+	
+	/* we only filter X/Y */
+	if (data_idx >= NUM_DATA_IDX)
+		return ADS7846_FILTER_OK;
+	
+	if (filt->cnt[data_idx] == 0) {
+		// don't send first value while delta is too high, 
+		if (( abs(filt->accu[data_idx] - *val ) > 50)){
+			filt->accu[data_idx] = *val;
+			return ADS7846_FILTER_IGNORE;
+		} else 
+			data = *val;
+	} else {
+		data = filt->accu[data_idx];
+
+		/* filter weighted by movement speed */
+		delta = abs(data - (*val));
+
+		if (delta > 1000){	// high delta probably not valid filtering it 
+			filt->accu[data_idx] = *val;
+			return ADS7846_FILTER_IGNORE;
+		} else if (delta > 200)
+			filter_len = 1;
+		else if (delta > 100)
+			filter_len = 2;
+
+		filter_len *= filter_factor;	
+		data = (data * (filter_len-1) + *val) / (filter_len);
+	
+		pr_debug("ads7846_filter_type1: %p %i %i -> %i\n", 
+			filter_data, data_idx, *val, data);
+	
+		*val = data;
+	}
+
+	filt->accu[data_idx] = data;
+	filt->cnt[data_idx]++;
+	
+	return ADS7846_FILTER_OK;
+}
+
 static void ads7846_filter_flush(void *filter_data)
 {
 	struct ads7846_filter_data *filt = filter_data;
@@ -177,6 +224,10 @@ int __init ads7846_dev_init(void)
 
 	if (tsp_cfg->rev[hardware_rev].filter_factor != 0)
 		filter_factor = tsp_cfg->rev[hardware_rev].filter_factor;
+
+	if (tsp_cfg->rev[hardware_rev].filter_type != 0) {
+		tsc2046_config.filter = &ads7846_filter_type1;
+	}
 
 	if (tsp_cfg->rev[hardware_rev].bus_num == 2) {
 		omap_cfg_reg(AA3_3430_MCSPI2_CLK);
