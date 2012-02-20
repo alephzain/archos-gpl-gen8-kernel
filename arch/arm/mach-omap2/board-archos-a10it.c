@@ -939,6 +939,7 @@ static struct regulator_init_data board_vintana1 = {
 static struct twl4030_usb_data board_usb_data = {
 	.usb_mode	= T2_USB_MODE_ULPI,
 	.enable_charge_detect = 0,
+	.external_vbus = 1,
 };
 
 static int archos_twl_gpio_setup(struct device *dev,

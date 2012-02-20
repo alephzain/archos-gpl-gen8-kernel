@@ -58,8 +58,6 @@ struct ov7675_decoder {
 	int current_unbanding_mode;		/* Current Unbanding Mode */
 	int current_night_mode;			/* Current Night Mode */
 	int current_manual_wb;			/* Current Manual White Balance */
-	enum ov7675_power_state sysfs_power_state;
-	enum ov7675_power_state v4l2_power_state;
 };
 
 static unsigned long xclk_current = OV7675_CLOCK_24MHZ;
@@ -1801,77 +1799,35 @@ static int ioctl_g_priv(struct v4l2_int_device *s, void *p)
 	return decoder->pdata->priv_data_set(s, p);
 }
 
-static enum ov7675_power_client ov7675_get_power(struct v4l2_int_device *s, enum ov7675_power_client client)
+static int ioctl_s_power(struct v4l2_int_device *s, enum v4l2_power on)
 {
 	struct ov7675_decoder *decoder = s->priv;
-
-	switch (client) {
-	case OV7675_CLIENT_SYSFS:
-		return decoder->sysfs_power_state;
-		break;
-	case OV7675_CLIENT_V4L2:
-	default:
-		return decoder->v4l2_power_state;
-		break;
-	}
-}
-
-static int ov7675_set_power(struct v4l2_int_device *s, enum ov7675_power_state on, enum ov7675_power_client client)
-{
-
-	struct ov7675_decoder *decoder = s->priv;
-	enum ov7675_power_state *client_power_state, previous_state;
 	int err = 0;
 
-	switch (client) {
-	case OV7675_CLIENT_SYSFS:
-		client_power_state = &decoder->sysfs_power_state;
-		/*
-		 * If the sensor has been enabled by the SYSFS only,
-		 * we want it in night mode (variable FPS).
-		 */
-		if (on == OV7675_POWER_ON && decoder->v4l2_power_state == OV7675_POWER_OFF)
-			ov7675_t_night_mode(decoder->client, 1);
-		break;
-	case OV7675_CLIENT_V4L2:
-		client_power_state = &decoder->v4l2_power_state;
-		/*
-		 * If the sensor has been enabled by the SYSFS only,
-		 * we want it in night mode (variable FPS).
-		 */
-		if (on == OV7675_POWER_OFF && decoder->sysfs_power_state == OV7675_POWER_ON)
-			ov7675_t_night_mode(decoder->client, 1);
-		break;
-	default:
-		return -1;
-	}
-
-	/* Update power state */
-	previous_state = *client_power_state;
-	*client_power_state = on;
-
 	switch (on) {
-	case OV7675_POWER_OFF:
-		if ((decoder->sysfs_power_state == OV7675_POWER_OFF &&
-		     decoder->v4l2_power_state == OV7675_POWER_OFF) &&
-		    decoder->state != STATE_NOT_DETECTED  &&
-		    decoder->pdata->power_set) {
-			/* Disable sensor clock */
-			if (decoder->pdata->set_xclk)
-				err = decoder->pdata->set_xclk(s, 0);
+	case V4L2_POWER_OFF:
+		/* Disable sensor clock */
+		if (decoder->pdata->set_xclk)
+			err = decoder->pdata->set_xclk(s, 0);
 
-			err |= decoder->pdata->power_set(on);
+		/* Power Down Sequence */
+		/* Disable mux for OV7675 sensor data path */
+		if (decoder->pdata->power_set)
+			err |= decoder->pdata->power_set(s, on);
+		decoder->state = STATE_NOT_DETECTED;
+		break;
 
-			decoder->state = STATE_NOT_DETECTED;
-		}
-	break;
+	case V4L2_POWER_STANDBY:
+//		if (decoder->pdata->power_set)
+//			err = decoder->pdata->power_set(s, on);
+//		break;
 
-	case OV7675_POWER_ON:
-		if ((decoder->sysfs_power_state == OV7675_POWER_ON ||
-		     decoder->v4l2_power_state == OV7675_POWER_ON) &&
-		    decoder->state == STATE_NOT_DETECTED &&
-		    decoder->pdata->power_set) {
-			err |= decoder->pdata->power_set(on);
+	case V4L2_POWER_ON:
+		if ((decoder->pdata->power_set) &&
+				(decoder->state == STATE_NOT_DETECTED)) {
+			/* Power Up Sequence */
+			/* Enable mux for OV7675 sensor data path */
+			err = decoder->pdata->power_set(s, on);
 
 			/* Enable sensor clock */
 			if (decoder->pdata->set_xclk)
@@ -1888,58 +1844,12 @@ static int ov7675_set_power(struct v4l2_int_device *s, enum ov7675_power_state o
 				/* Disable sensor clock */
 				if (decoder->pdata->set_xclk)
 					err = decoder->pdata->set_xclk(s, 0);
-
-				if (decoder->pdata->power_set)
-					err |= decoder->pdata->power_set(OV7675_POWER_OFF);
-
-				/* Revert power state update */
-				*client_power_state = previous_state;
-
 				return err;
 			}
-
 			err |= ov7675_init(decoder->client);
-
-			// A little delay is needed to get a good first frame.
-			msleep(10);
 		}
-	break;
-	}
-
-	return err;
-}
-
-static int ioctl_s_power(struct v4l2_int_device *s, enum v4l2_power on)
-{
-	struct ov7675_decoder *decoder = s->priv;
-	int err = 0;
-
-	switch (on) {
-	case V4L2_POWER_OFF:
-		/* Power Down Sequence */
-		/* Disable V4L2 board dependent stuff */
-		if (decoder->pdata->v4l2_power_set)
-			err |= decoder->pdata->v4l2_power_set(s, on);
-
-		/* Disable OV7675 sensor data path */
-		err |= ov7675_set_power(s, OV7675_POWER_OFF, OV7675_CLIENT_V4L2);
-		break;
-
-	case V4L2_POWER_STANDBY:
-//		if (decoder->pdata->v4l2_power_set)
-//			err = decoder->pdata->v4l2_power_set(s, on);
-//		break;
-
-	case V4L2_POWER_ON:
-		if ((decoder->state == STATE_NOT_DETECTED)) {
-			/* Power Up Sequence */
-			/* Enable OV7675 sensor data path */
-			err |= ov7675_set_power(s, OV7675_POWER_ON, OV7675_CLIENT_V4L2);
-
-			/* Enable V4L2 board dependent stuff */
-			if (decoder->pdata->v4l2_power_set)
-				err |= decoder->pdata->v4l2_power_set(s, on);
-		}
+		// A little delay is needed to get a good first frame.
+		msleep(10);
 		break;
 
 	default:
@@ -2031,8 +1941,6 @@ static struct ov7675_decoder ov7675_dev = {
 	.current_unbanding_mode = V4L2_UNBANDING_50HZ,
 	.current_night_mode = 0,
 	.current_manual_wb = 6000,
-	.sysfs_power_state = OV7675_POWER_OFF,
-	.v4l2_power_state = OV7675_POWER_OFF,
 };
 
 static struct v4l2_int_device ov7675_int_device = {
@@ -2044,59 +1952,6 @@ static struct v4l2_int_device ov7675_int_device = {
 	      .slave = &ov7675_slave,
 	      },
 };
-
-static ssize_t virtual_exposure_show(struct device *dev, struct device_attribute *attr,
-			   char *buf)
-{
-	struct ov7675_decoder *decoder = &ov7675_dev;
-	unsigned char exhch = 0, exhcl = 0, regca = 0, advfl = 0;
-	unsigned char advfh = 0, gain = 0, vref = 0;
-	unsigned long advf, exhc, analog_gain, exposure;
-
-	if (ov7675_get_power(&ov7675_int_device, OV7675_CLIENT_SYSFS) != OV7675_POWER_ON) {
-		return sprintf(buf, "Report not enabled\n");
-	}
-
-	ov7675_read(decoder->client, REG_EXHCH, &exhch);
-	ov7675_read(decoder->client, REG_EXHCL, &exhcl);
-	ov7675_read(decoder->client, REG_REGCA, &regca);
-	ov7675_read(decoder->client, REG_ADVFL, &advfl);
-	ov7675_read(decoder->client, REG_ADVFH, &advfh);
-	ov7675_read(decoder->client, REG_GAIN, &gain);
-	ov7675_read(decoder->client, REG_VREF, &vref);
-
-	advf = ((advfl >> 0) & 0xFF) << 0 | ((advfh >> 0) & 0xFF) << 8;
-	exhc = ((exhch >> 4) & 0xF) << 8 | ((exhcl >> 0) & 0xFF) << 0 | ((regca >> 6) & 0x3) << 12;
-	exposure = ((advf + 510) * (2 * (exhc + 784))); // x24000
-	analog_gain = ((((vref >> 7) & 1) + 1) * (((vref >> 6) & 1) + 1) * (((gain >> 7) & 1) + 1 ) *
-	       (((gain >> 6) & 1) + 1) * (((gain >> 5) & 1) + 1) * (((gain >> 4) & 1) + 1) *
-	       ((gain & 0x0F) + 16)); // x16
-
-	return sprintf(buf, "%ld\n", (exposure * analog_gain)/(24000 * 16));
-}
-static ssize_t virtual_exposure_store(struct device *dev, struct device_attribute *attr,
-			    const char *buf,size_t count)
-{
-	return count;
-}
-
-static ssize_t enable_report_show(struct device *dev, struct device_attribute *attr,
-			   char *buf)
-{
-	return sprintf(buf, "%d\n", ov7675_get_power(&ov7675_int_device, OV7675_CLIENT_SYSFS) == OV7675_POWER_ON);
-}
-static ssize_t enable_report_store(struct device *dev, struct device_attribute *attr,
-			    const char *buf,size_t count)
-{
-	int on;
-
-	sscanf(buf, "%d", &on);
-	ov7675_set_power(&ov7675_int_device, on ? OV7675_POWER_ON : OV7675_POWER_OFF, OV7675_CLIENT_SYSFS);
-	return count;
-}
-
-static DEVICE_ATTR(virtual_exposure, S_IWUSR | S_IRUGO, virtual_exposure_show, virtual_exposure_store);
-static DEVICE_ATTR(enable_report, S_IWUSR | S_IRUGO, enable_report_show, enable_report_store);
 
 
 /*
@@ -2128,26 +1983,12 @@ static int ov7675_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	/* Register with V4L2 layer as slave device */
 	err = v4l2_int_device_register(decoder->v4l2_int_device);
-	if (err)
-		goto err1;
+	if (err) {
+		i2c_set_clientdata(client, NULL);
+		v4l_err(client,
+			"Unable to register to v4l2. Err[%d]\n", err);
 
-	err = device_create_file(&client->dev, &dev_attr_virtual_exposure);
-	if (err)
-		goto err2;
-	err = device_create_file(&client->dev, &dev_attr_enable_report);
-	if (err)
-		goto err3;
-
-	return 0;
-
-err3:
-	device_remove_file(&client->dev, &dev_attr_virtual_exposure);
-err2:
-	v4l2_int_device_unregister(decoder->v4l2_int_device);
-err1:
-	i2c_set_clientdata(client, NULL);
-	v4l_err(client,
-		"Unable to register to v4l2. Err[%d]\n", err);
+	}
 
 	return err;
 }
@@ -2159,9 +2000,6 @@ static int __exit ov7675_remove(struct i2c_client *client)
 
 	if (!client->adapter)
 		return -ENODEV;	/* our client isn't attached */
-
-	device_remove_file(&client->dev, &dev_attr_enable_report);
-	device_remove_file(&client->dev, &dev_attr_virtual_exposure);
 
 	v4l2_int_device_unregister(decoder->v4l2_int_device);
 	i2c_set_clientdata(client, NULL);

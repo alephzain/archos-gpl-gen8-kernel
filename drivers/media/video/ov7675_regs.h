@@ -94,10 +94,6 @@
 #define REG_AEW		0x24	/* AGC upper limit */
 #define REG_AEB		0x25	/* AGC lower limit */
 #define REG_VPT		0x26	/* AGC/AEC fast mode op region */
-#define REG_EXHCH	0x2a
-#define REG_EXHCL	0x2b
-#define REG_ADVFL	0x2d
-#define REG_ADVFH	0x2e
 #define REG_HSYST	0x30	/* HSYNC rising edge delay */
 #define REG_HSYEN	0x31	/* HSYNC falling edge delay */
 #define REG_HREF	0x32	/* HREF pieces */
@@ -162,9 +158,6 @@
 #define   R444_ENABLE	  0x02	  /* Turn on RGB444, overrides 5x5 */
 #define   R444_RGBX	  0x01	  /* Empty nibble at end */
 
-#define REG_DM_LNL	0x91
-#define REG_DM_LNH	0x92
-
 #define REG_HAECC1	0x9f	/* Hist AEC/AGC control 1 */
 #define REG_HAECC2	0xa0	/* Hist AEC/AGC control 2 */
 
@@ -175,7 +168,6 @@
 #define REG_HAECC6	0xa9	/* Hist AEC/AGC control 6 */
 #define REG_HAECC7	0xaa	/* Hist AEC/AGC control 7 */
 #define REG_BD60MAX	0xab	/* 60hz banding step limit */
-#define REG_REGCA	0xca
 
 #define OV7675_CLOCK_MIN	1500000
 #define OV7675_CLOCK_12MHZ	12000000

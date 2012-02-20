@@ -307,6 +307,9 @@ struct twl4030_usb {
 	struct workqueue_struct *workqueue;
 	struct work_struct 	work;
 	struct completion	charge_detect_done;
+	int 			external_vbus;
+	struct task_struct 	*poll_otg_thread;
+
 };
 
 /* internal define on top of container_of */
@@ -490,6 +493,7 @@ static void twl4030_usb_power(struct twl4030_usb *twl, int on)
 		 */
 		twl4030_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER, 0,
 							VUSB_DEDICATED2);
+
 		regulator_enable(twl->usb1v5);
 	} else {
 		regulator_disable(twl->usb1v5);
@@ -664,13 +668,43 @@ static ssize_t usb_switch_print_state(struct switch_dev *sdev, char *buf)
 	return buflen;
 }
 
+
 static int twl4030_poll_usbid( void *_twl );
+
+/* if VBUS pump is restarted on A101, we need to disable it early,
+to prevent overvoltage on output pin.
+*/
+static int twl4030_poll_host( void *_twl )
+{
+	struct twl4030_usb *twl = (struct twl4030_usb*) _twl;
+	static int oldval;
+
+	do {
+		msleep_interruptible( 10 );
+
+		int val = twl4030_usb_read(twl, TWL4030_OTG_CTRL);
+		if (val != oldval){
+			printk("otg_ctrl : %x \n", val);
+			if ( val & TWL4030_OTG_CTRL_DRVVBUS ){
+				twl4030_usb_write(twl, TWL4030_OTG_CTRL_CLR, TWL4030_OTG_CTRL_DRVVBUS);
+				twl->poll_otg_thread = NULL;
+				return 0;
+			}
+			oldval = val;
+		}
+
+	} while (!kthread_should_stop());
+
+	twl->poll_otg_thread = NULL;
+	return 0;
+}
+
 
 static void twl4030_linkstate_worker(struct work_struct *work)
 {
 	struct twl4030_usb *twl = container_of(work, struct twl4030_usb, work);
 	int linkstat = twl->linkstat;
-	
+
 	spin_lock_irq(&twl->lock);
 	if (linkstat == USB_LINK_ID) {
 		twl->otg.default_a = true;
@@ -684,6 +718,9 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 	/* stop the polling thread */
 	if ( twl->poll_usbid_thread ) {
 		kthread_stop(twl->poll_usbid_thread);
+	}
+	if ( twl->poll_otg_thread ) {
+		kthread_stop(twl->poll_otg_thread);
 	}
 
 	if (linkstat != USB_LINK_UNKNOWN) {
@@ -726,7 +763,6 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 				
 				twl4030_link_force_active(twl, 0);
 				twl4030_phy_suspend(twl, 0);
-
 				msleep(100);
 			}
 			/* if a USB host cable is attached with a charged capacitor on VBUS, we might
@@ -807,6 +843,7 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 					twl4030_usb_power(twl, 0); /* turn if off, twl4030_usb_power() will turn it back on */
 				}
 #endif
+
 				twl4030_link_force_active(twl, 1);
 				twl4030_phy_resume(twl);
 
@@ -827,6 +864,22 @@ static void twl4030_linkstate_worker(struct work_struct *work)
 								dev_err(twl->dev, "Unable to start poll_id thread\n");
 							} else
 								twl->poll_usbid_thread = th;
+						}
+					}
+
+					if ( twl->external_vbus ) {
+						/* start the polling thread - we need to poll for changes to otg_ctrl 
+						 * if VBUS pump is restarted on A101. 
+						 */
+						struct task_struct *th;
+						if ( twl->poll_otg_thread ) {
+							printk("poll otg thread already active!!\n");
+						} else {
+							th = kthread_run(twl4030_poll_host, twl, "twl4030_usb-pollhost");
+							if (IS_ERR(th)) {
+								dev_err(twl->dev, "Unable to start poll_host thread\n");
+							} else
+								twl->poll_otg_thread = th;
 						}
 					}
 				}
@@ -914,6 +967,7 @@ static irqreturn_t twl4030_usb_id_irq(int irq, void *_twl)
 	spin_lock_irq(&twl->lock);
 	twl->previous_linkstat = twl->linkstat;
 	twl->linkstat = usb_id ? USB_LINK_VBUS : USB_LINK_ID;
+
 	spin_unlock_irq(&twl->lock);
 
 	queue_work( twl->workqueue, &twl->work );
@@ -928,7 +982,7 @@ static irqreturn_t twl4030_usb_id_irq(int irq, void *_twl)
 static int twl4030_poll_usbid( void *_twl )
 {
 	struct twl4030_usb *twl = (struct twl4030_usb*) _twl;
-	
+
 	set_freezable();
 	while (!kthread_should_stop()) {
 		int linkstat;
@@ -1035,6 +1089,7 @@ static int __init twl4030_usb_probe(struct platform_device *pdev)
 	twl->asleep		= 1;
 	twl->gpio_usb_id	= pdata->gpio_usb_id;
 	twl->enable_charge_detect = pdata->enable_charge_detect;
+	twl->external_vbus 	= pdata->external_vbus;
 	
 	/* init spinlock for workqueue */
 	spin_lock_init(&twl->lock);
@@ -1165,8 +1220,6 @@ static int __init twl4030_usb_probe(struct platform_device *pdev)
 	 */
 	twl4030_usb_irq(twl->irq, twl);
 
-
-
 	dev_info(&pdev->dev, "Initialized TWL4030 USB module\n");
 	return 0;
 
@@ -1207,6 +1260,9 @@ static int __exit twl4030_usb_remove(struct platform_device *pdev)
 	/* stop the polling thread */
 	if ( twl->poll_usbid_thread )
 		kthread_stop(twl->poll_usbid_thread);
+
+	if ( twl->poll_otg_thread )
+		kthread_stop(twl->poll_otg_thread);
 	
 	/* disable complete OTG block */
 	twl4030_usb_clear_bits(twl, POWER_CTRL, POWER_CTRL_OTG_ENAB);

@@ -73,7 +73,7 @@ static void __init board_init_irq(void)
 }
 
 static struct archos_display_config display_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.lcd_pwon = 	{ 157,	AA21_34XX_GPIO157_OUT },
 		.lcd_rst = 	{ 49,	W1_34XX_GPIO49_OUT },
@@ -218,6 +218,19 @@ static struct archos_display_config display_config __initdata = {
 		},
 	},
 	.rev[11] = {
+		.lcd_pwon = 	{ 157,	AA21_34XX_GPIO157_OUT },
+		.lcd_rst = 	{ 49,	W1_34XX_GPIO49_OUT },
+		.lcd_pci = 	UNUSED_GPIO,
+		.hdmi_pwr = 	UNUSED_GPIO,
+		.hdmi_int = 	UNUSED_GPIO,
+		.vcom_pwm = 	{ .timer = -1, .mux_cfg = -1 },
+		.spi = {
+			.spi_clk  = UNUSED_GPIO,
+			.spi_data = UNUSED_GPIO,
+			.spi_cs   = UNUSED_GPIO,
+		},
+	},
+	.rev[12] = {
 		.lcd_pwon = 	{ 157,	AA21_34XX_GPIO157_OUT },
 		.lcd_rst = 	{ 49,	W1_34XX_GPIO49_OUT },
 		.lcd_pci = 	UNUSED_GPIO,
@@ -245,7 +258,7 @@ static struct omap_uart_config uart_config __initdata = {
 };
 
 static struct archos_tsp_config tsp_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 51, .mux_cfg = L2_3611_GPIO51 },
@@ -335,6 +348,14 @@ static struct archos_tsp_config tsp_config __initdata = {
 		.inversion_flags = XY_SWAP | X_INV,
 	},
 	.rev[11] = {
+		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
+		.pwr_gpio = { .nb = 51, .mux_cfg = L2_3611_GPIO51 },
+		.bus_num = 2,
+		.x_plate_ohms = 745,
+		.pressure_max = 2000,
+		.inversion_flags = XY_SWAP | X_INV,
+	},
+	.rev[12] = {
 		.irq_gpio = { .nb = 24, .mux_cfg = AE7_3430_GPIO24 },
 		.pwr_gpio = { .nb = 51, .mux_cfg = L2_3611_GPIO51 },
 		.bus_num = 2,
@@ -345,7 +366,7 @@ static struct archos_tsp_config tsp_config __initdata = {
 };
 
 static struct archos_audio_config audio_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.spdif = UNUSED_GPIO,
 		.hp_on = UNUSED_GPIO,
@@ -413,6 +434,12 @@ static struct archos_audio_config audio_config __initdata = {
 		.clk_mux = W13_3611_CLKOUT2,
 	},
 	.rev[11] = {
+		.spdif = UNUSED_GPIO,
+		.hp_on = UNUSED_GPIO,
+		.headphone_plugged = UNUSED_GPIO,
+		.clk_mux = W13_3611_CLKOUT2,
+	},
+	.rev[12] = {
 		.spdif = UNUSED_GPIO,
 		.hp_on = UNUSED_GPIO,
 		.headphone_plugged = UNUSED_GPIO,
@@ -422,7 +449,7 @@ static struct archos_audio_config audio_config __initdata = {
 
 
 static struct archos_charge_config charge_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.charge_enable 	= { .nb = 27, .mux_cfg = AH7_3430_GPIO27 },
 		.charge_high	= { .nb = 28, .mux_cfg = AG8_3430_GPIO28 },
@@ -490,6 +517,12 @@ static struct archos_charge_config charge_config __initdata = {
 		.charger_type	= CHARGER_LX2208,
 	},
 	.rev[11] = {
+		.charge_enable 	= { .nb = 27, .mux_cfg = AH7_3430_GPIO27 },
+		.charge_high	= { .nb = 28, .mux_cfg = AG8_3430_GPIO28 },
+		.charge_low 	= { .nb = 22, .mux_cfg = AF9_3430_GPIO22 },
+		.charger_type	= CHARGER_LX2208,
+	},
+	.rev[12] = {
 		.charge_enable 	= { .nb = 27, .mux_cfg = AH7_3430_GPIO27 },
 		.charge_high	= { .nb = 28, .mux_cfg = AG8_3430_GPIO28 },
 		.charge_low 	= { .nb = 22, .mux_cfg = AF9_3430_GPIO22 },
@@ -499,7 +532,7 @@ static struct archos_charge_config charge_config __initdata = {
 
 
 static struct archos_wifi_bt_config wifi_bt_dev_conf __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.wifi_power 	= { .nb = 96, .mux_cfg = H20_3611_GPIO96 },
 		.wifi_irq 	= { .nb = 114, .mux_cfg = AG18_3430_GPIO114_UP },
@@ -567,6 +600,12 @@ static struct archos_wifi_bt_config wifi_bt_dev_conf __initdata = {
 		.wifi_pa_type	= PA_TYPE_RF3482,
 	},
 	.rev[11] = {
+		.wifi_power 	= { .nb = 96, .mux_cfg = H20_3611_GPIO96 },
+		.wifi_irq 	= { .nb = 114, .mux_cfg = AG18_3430_GPIO114_UP },
+		.bt_power 	= { .nb = 156, .mux_cfg = U21_3611_GPIO156 },
+		.wifi_pa_type	= PA_TYPE_TQM67002A,
+	},
+	.rev[12] = {
 		.wifi_power 	= { .nb = 96, .mux_cfg = H20_3611_GPIO96 },
 		.wifi_irq 	= { .nb = 114, .mux_cfg = AG18_3430_GPIO114_UP },
 		.bt_power 	= { .nb = 156, .mux_cfg = U21_3611_GPIO156 },
@@ -576,7 +615,7 @@ static struct archos_wifi_bt_config wifi_bt_dev_conf __initdata = {
 
 
 static struct archos_accel_config accel_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.accel_int1 = { .nb = 115, .mux_cfg = AH18_3430_GPIO115},
 		.accel_int2 = UNUSED_GPIO,
@@ -622,20 +661,24 @@ static struct archos_accel_config accel_config __initdata = {
 		.accel_int2 = UNUSED_GPIO,
 	},
 	.rev[11] = {
+		.accel_int1 = { .nb = 115, .mux_cfg = AH18_3430_GPIO115},
+		.accel_int2 = UNUSED_GPIO,
+	},
+	.rev[12] = {
 		.accel_int1 = { .nb = 115, .mux_cfg = AH18_3430_GPIO115},
 		.accel_int2 = UNUSED_GPIO,
 	},
 };
 
 static struct archos_leds_config leds_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
 		.backlight_led = { .timer = 8, .mux_cfg = N8_3630_GPT08_OFF_HIGH },
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[1] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -643,7 +686,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[2] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -651,7 +694,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[3] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -659,7 +702,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[4] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -667,7 +710,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[5] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -675,7 +718,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[6] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -683,7 +726,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[7] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -691,7 +734,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[8] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -699,7 +742,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[9] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -707,7 +750,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[10] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -715,7 +758,7 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
 	},
 	.rev[11] = {
 		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
@@ -723,12 +766,20 @@ static struct archos_leds_config leds_config __initdata = {
 		.bkl_max = 210,
 		.backlight_power = UNUSED_GPIO,
 		.bkl_invert = 1,
-		.bkl_freq = 30000,
+		.bkl_freq = 300,
+	},
+	.rev[12] = {
+		.power_led = { .nb = 50, .mux_cfg = K2_3611_GPIO50},
+		.backlight_led = { .timer = 8, .mux_cfg = N8_3630_GPT08_OFF_HIGH },
+		.bkl_max = 210,
+		.backlight_power = UNUSED_GPIO,
+		.bkl_invert = 1,
+		.bkl_freq = 300,
 	},
 };
 
 static struct archos_sd_config sd_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.sd_power = { .nb = 26, .mux_cfg = AB5_3611_GPIO26 },
 		.sd_detect = { .nb = 25, .mux_cfg = AA5_3611_GPIO25 },
@@ -786,6 +837,11 @@ static struct archos_sd_config sd_config __initdata = {
 		.sd_prewarn = UNUSED_GPIO,
 	},
 	.rev[11] = {
+		.sd_power = { .nb = 26, .mux_cfg = AB5_3611_GPIO26 },
+		.sd_detect = { .nb = 25, .mux_cfg = AA5_3611_GPIO25 },
+		.sd_prewarn = UNUSED_GPIO,
+	},
+	.rev[12] = {
 		.sd_power = { .nb = 26, .mux_cfg = AB5_3611_GPIO26 },
 		.sd_detect = { .nb = 25, .mux_cfg = AA5_3611_GPIO25 },
 		.sd_prewarn = UNUSED_GPIO,
@@ -793,7 +849,7 @@ static struct archos_sd_config sd_config __initdata = {
 };
 
 static struct archos_keys_config keys_config __initdata = {
-	.nrev = 12,
+	.nrev = 13,
 	.rev[0] = {
 		.power = { .nb = 47, .mux_cfg = T1_3611_GPIO47},
 	},
@@ -828,6 +884,9 @@ static struct archos_keys_config keys_config __initdata = {
 		.power = { .nb = 47, .mux_cfg = T1_3611_GPIO47},
 	},
 	.rev[11] = {
+		.power = { .nb = 47, .mux_cfg = T1_3611_GPIO47},
+	},
+	.rev[12] = {
 		.power = { .nb = 47, .mux_cfg = T1_3611_GPIO47},
 	},
 };

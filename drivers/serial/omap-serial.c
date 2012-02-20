@@ -134,7 +134,7 @@ static struct wake_lock omap_serial_wakelock;
 /* Forward declaration of dma callback functions */
 static void uart_tx_dma_callback(int lch, u16 ch_status, void *data);
 static void serial_omap_rx_timeout(unsigned long uart_no);
-static void serial_omap_start_rxdma(struct uart_omap_port *up);
+static int serial_omap_start_rxdma(struct uart_omap_port *up);
 
 #ifdef DEBUG
 static void serial_omap_display_reg(struct uart_port *port);
@@ -482,13 +482,17 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 	if (iir & UART_IIR_NO_INT)
 		return IRQ_NONE;
 	lsr = serial_in(up, UART_LSR);
-	if ((iir & 0x4) && up->use_dma) {
-		up->ier &= ~UART_IER_RDI;
-		serial_out(up, UART_IER, up->ier);
-		serial_omap_start_rxdma(up);
-		wake_lock_timeout(&omap_serial_wakelock, 1*HZ);
-	} else if (lsr & UART_LSR_DR) {
-		receive_chars(up, &lsr);
+	if (iir & 0x4) {
+		if (up->use_dma) {
+			up->ier &= ~UART_IER_RDI;
+			serial_out(up, UART_IER, up->ier);
+			if (serial_omap_start_rxdma(up) != 0)
+				if (lsr & UART_LSR_DR)
+					receive_chars(up, &lsr);
+			wake_lock_timeout(&omap_serial_wakelock, 1*HZ);
+		} else if (lsr & UART_LSR_DR) {
+			receive_chars(up, &lsr);
+		}
 	}
 	check_modem_status(up);
 	if ((lsr & UART_LSR_THRE) && (iir & 0x2))
@@ -1334,12 +1338,17 @@ static void uart_rx_dma_callback(int lch, u16 ch_status, void *data)
 	return;
 }
 
-static void serial_omap_start_rxdma(struct uart_omap_port *up)
+static int serial_omap_start_rxdma(struct uart_omap_port *up)
 {
+	int ret = 0;
+
 	if (up->uart_dma.rx_dma_channel == 0xFF) {
-		omap_request_dma(uart_dma_rx[up->pdev->id-1], "UART Rx DMA",
-			(void *)uart_rx_dma_callback, up,
-				&(up->uart_dma.rx_dma_channel));
+		ret = omap_request_dma(uart_dma_rx[up->pdev->id-1],
+			"UART Rx DMA", (void *)uart_rx_dma_callback, up,
+			&(up->uart_dma.rx_dma_channel));
+
+		if (ret < 0)
+			return ret;
 
 		omap_set_dma_src_params(up->uart_dma.rx_dma_channel, 0,
 				OMAP_DMA_AMODE_CONSTANT,
@@ -1361,6 +1370,7 @@ static void serial_omap_start_rxdma(struct uart_omap_port *up)
 				usecs_to_jiffies(up->uart_dma.rx_timeout));
 	up->uart_dma.rx_dma_state = 1;
 
+	return ret;
 }
 
 static void serial_omap_continue_tx(struct uart_omap_port *up)

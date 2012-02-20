@@ -386,6 +386,7 @@ struct twl4030_usb_data {
 	int			usb_id_irq;
 	int			gpio_usb_id;
 	int			enable_charge_detect;
+	int			external_vbus;
 };
 
 struct twl4030_ins {
