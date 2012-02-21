@@ -128,7 +128,7 @@ u32 omap_prcm_get_reset_sources(void)
 EXPORT_SYMBOL(omap_prcm_get_reset_sources);
 
 /* Resets clock rates and reboots the system. Only called from system.h */
-void omap_prcm_arch_reset(char mode)
+void omap_prcm_restart(char mode, const char *cmd)
 {
 	s16 prcm_offs;
 

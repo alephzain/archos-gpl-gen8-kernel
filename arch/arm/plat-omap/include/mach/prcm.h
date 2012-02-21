@@ -24,7 +24,7 @@
 #define __ASM_ARM_ARCH_OMAP_PRCM_H
 
 u32 omap_prcm_get_reset_sources(void);
-void omap_prcm_arch_reset(char mode);
+void omap_prcm_restart(char mode, const char *cmd);
 
 void cm_write_mod_reg(u32 val, s16 module, u16 idx);
 u32 cm_read_mod_reg(s16 module, u16 idx);

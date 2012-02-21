@@ -716,8 +716,8 @@ void __init setup_arch(char **cmdline_p)
 	mdesc = setup_machine(machine_arch_type);
 	machine_name = mdesc->name;
 
-	if (mdesc->soft_reboot)
-		reboot_setup("s");
+	if (mdesc->restart_mode)
+		reboot_setup(&mdesc->restart_mode);
 
 	if (__atags_pointer)
 		tags = phys_to_virt(__atags_pointer);
@@ -753,6 +753,9 @@ void __init setup_arch(char **cmdline_p)
 	parse_cmdline(cmdline_p, from);
 	paging_init(mdesc);
 	request_standard_resources(&meminfo, mdesc);
+
+	if (mdesc->restart)
+		arm_pm_restart = mdesc->restart;
 
 #ifdef CONFIG_SMP
 	smp_init_cpus();

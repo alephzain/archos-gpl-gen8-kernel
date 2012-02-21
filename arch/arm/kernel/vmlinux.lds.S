@@ -6,6 +6,12 @@
 #include <asm-generic/vmlinux.lds.h>
 #include <asm/thread_info.h>
 #include <asm/memory.h>
+
+#define IDMAP_TEXT				\
+	ALIGN_FUNCTION();			\
+	VMLINUX_SYMBOL(__idmap_text_start) = .;	\
+	*(.idmap.text)				\
+	VMLINUX_SYMBOL(__idmap_text_end) = .;
 	
 OUTPUT_ARCH(arm)
 ENTRY(stext)
@@ -95,6 +101,7 @@ SECTIONS
 			SCHED_TEXT
 			LOCK_TEXT
 			KPROBES_TEXT
+			IDMAP_TEXT
 #ifdef CONFIG_MMU
 			*(.fixup)
 #endif

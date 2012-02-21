@@ -7,16 +7,16 @@
 #include <linux/delay.h>
 #include <linux/reboot.h>
 #include <linux/io.h>
+#include <asm/cputype.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 #include <asm/cacheflush.h>
 #include <asm/mach-types.h>
+#include <asm/system.h>
 
 extern const unsigned char relocate_new_kernel[];
 extern const unsigned int relocate_new_kernel_size;
-
-extern void setup_mm_for_reboot(char mode);
 
 extern unsigned long kexec_start_address;
 extern unsigned long kexec_indirection_page;
@@ -74,7 +74,5 @@ void machine_kexec(struct kimage *image)
 			   (unsigned long) reboot_code_buffer + KEXEC_CONTROL_PAGE_SIZE);
 	printk(KERN_INFO "Bye!\n");
 
-	cpu_proc_fin();
-	setup_mm_for_reboot(0); /* mode is not used, so just pass 0*/
-	cpu_reset(reboot_code_buffer_phys);
+	soft_restart(reboot_code_buffer_phys);
 }

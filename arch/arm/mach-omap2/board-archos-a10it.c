@@ -35,6 +35,7 @@
 #include <mach/common.h>
 #include <mach/gpmc.h>
 #include <mach/usb.h>
+#include <mach/prcm.h>
 
 #include <mach/mux.h>
 
@@ -1541,4 +1542,5 @@ MACHINE_START(ARCHOS_A101IT, "Archos A101IT board")
 	.init_irq	= board_init_irq,
 	.init_machine	= board_init,
 	.timer		= &omap_timer,
+	.restart	= omap_prcm_restart,
 MACHINE_END

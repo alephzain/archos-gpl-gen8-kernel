@@ -43,7 +43,7 @@ static inline void arch_reset(char mode)
 	if (!cpu_class_is_omap2())
 		omap1_arch_reset(mode);
 	else
-		omap_prcm_arch_reset(mode);
+		omap_prcm_restart(mode, NULL);
 }
 
 #endif

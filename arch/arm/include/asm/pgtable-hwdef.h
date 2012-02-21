@@ -37,6 +37,7 @@
 #define PMD_SECT_nG		(1 << 17)	/* v6 */
 #define PMD_SECT_SUPER		(1 << 18)	/* v6 */
 
+#define PMD_SECT_AF		(0)
 #define PMD_SECT_UNCACHED	(0)
 #define PMD_SECT_BUFFERED	(PMD_SECT_BUFFERABLE)
 #define PMD_SECT_WT		(PMD_SECT_CACHEABLE)
