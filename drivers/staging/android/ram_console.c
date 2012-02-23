@@ -348,10 +348,27 @@ static struct platform_driver ram_console_driver = {
 	},
 };
 
+/* lazy declaration for ram_console */
+static struct resource ram_console_resource[] = {
+	{
+		.start  = 0x8D000000,
+		.end    = 0x8D01FFFF,
+		.flags  = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device ram_console_device = {
+	.name		= "ram_console",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ram_console_resource),
+	.resource	= ram_console_resource,
+};
+
 static int __init ram_console_module_init(void)
 {
 	int err;
 	err = platform_driver_register(&ram_console_driver);
+	platform_device_register(&ram_console_device);
 	return err;
 }
 #endif

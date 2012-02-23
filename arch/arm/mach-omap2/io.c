@@ -170,6 +170,14 @@ static struct map_desc omap34xx_io_desc[] __initdata = {
 		.length		= L4_EMU_34XX_SIZE,
 		.type		= MT_DEVICE
 	},
+#if defined(CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT) && defined(CONFIG_MACH_ARCHOS)
+	{
+		.virtual	= ARCHOS_RAM_CONSOLE_VIRT,
+		.pfn		= __phys_to_pfn(ARCHOS_RAM_CONSOLE_PHYS),
+		.length		= ARCHOS_RAM_CONSOLE_SIZE,
+		.type		= MT_DEVICE
+	},
+#endif
 };
 #endif
 

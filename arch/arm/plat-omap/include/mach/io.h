@@ -144,6 +144,12 @@
 #define L3_IO_OFFSET		0x90000000
 #define IO_OFFSET               0xb2000000
 
+#if defined(CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT) && defined(CONFIG_MACH_ARCHOS)
+#define ARCHOS_RAM_CONSOLE_PHYS		0x8D000000
+#define ARCHOS_RAM_CONSOLE_VIRT		0xFF000000
+#define ARCHOS_RAM_CONSOLE_SIZE		0x20000
+#endif
+
 #ifndef __ASSEMBLER__
 /* Works for L3 and L4 */
 #define __IO_ADDRESS(pa)	((pa) >= L3_34XX_PHYS ? \
