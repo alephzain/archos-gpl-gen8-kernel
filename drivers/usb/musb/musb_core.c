@@ -1014,7 +1014,7 @@ MODULE_PARM_DESC(fifo_mode, "initial endpoint configuration");
  * USB role is a module parameter now. Default is the platform-specific
  * data if no parameter is given
  */
-int mode_default = MUSB_UNDEFINED;
+int mode_default = MUSB_PERIPHERAL;
 module_param (mode_default, int, 0);
 MODULE_PARM_DESC(mode_default, "default usb role: 1 - host, 2 - peripheral");
 

@@ -182,6 +182,9 @@ obj-$(CONFIG_MACH_ARCHOS)		+= archos-accel.o \
 					   mmc-twl4030.o \
 					   archos-usb-android.o
 
+obj-$(CONFIG_OMAP_SOFTREBOOT)		+= softreboot.o
+softreboot-objs				:= omap-softreboot.o
+
 obj-$(CONFIG_CLOCKS_INIT) 		+= archos-clock.o
 
 # Platform specific device init code
