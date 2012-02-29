@@ -317,3 +317,8 @@ config CMDLINE6
 	string "Initial kernel command string for Archos boards"
 	depends on MACH_ARCHOS
 	default ""
+
+config CMDLINE7
+        string "Initial kernel command string for Archos boards"
+        depends on MACH_ARCHOS
+        default ""
