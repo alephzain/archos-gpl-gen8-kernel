@@ -27,7 +27,7 @@
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
-#include <../../scsi/sd.h>
+#include "../../scsi/sd.h"
 
 #include <mach/board-archos.h>
 
